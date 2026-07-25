@@ -1,0 +1,16 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: Spring AI
+
+  ai:
+    deepseek:
+      api-key: ${AI-API-KEY}
+      base-url: https://api.deepseek.com
+      chat:
+        model: deepseek-chat
+
+
+
