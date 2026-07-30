@@ -4,13 +4,22 @@ server:
 spring:
   application:
     name: Spring AI
+  jpa:
+      hibernate:
+        ddl-auto: validate
+      show-sql: true
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/spring_ai
+    username: ${DATABASE_USERNAME}
+    password: ${DATABASE_PASSWORD}
 
   ai:
     deepseek:
       api-key: ${AI-API-KEY}
-      base-url: https://api.deepseek.com
+      base-url: https://api.deepseek.com/v1
       chat:
-        model: deepseek-chat
+        model: deepseek-v4-flash
 
 
 
