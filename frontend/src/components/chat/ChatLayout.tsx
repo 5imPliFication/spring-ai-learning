@@ -1,0 +1,284 @@
+import React, { useState, useEffect, useCallback } from 'react';
+import { useAuth } from '../../context/AuthContext';
+import type { Room, Message, ChatMessagePayload, User, AppError } from '../../types';
+import { roomApi, setGlobalErrorHandler } from '../../services/api';
+import { wsService } from '../../services/websocket';
+import { Sidebar } from './Sidebar';
+import { ChatHeader } from './ChatHeader';
+import { MessageFeed } from './MessageFeed';
+import { MessageInput } from './MessageInput';
+import { CreateRoomModal } from './CreateRoomModal';
+import { DiscoverRoomsModal } from './DiscoverRoomsModal';
+import { JoinRoomModal } from './JoinRoomModal';
+import { RoomSettingsModal } from './RoomSettingsModal';
+import { ProfileModal } from '../profile/ProfileModal';
+import { FriendsModal } from '../friends/FriendsModal';
+import { AdminDashboard } from '../admin/AdminDashboard';
+import { ErrorPage } from '../common/ErrorPage';
+import { MessageSquare, Sparkles } from 'lucide-react';
+
+export const ChatLayout: React.FC = () => {
+  const { user, logout } = useAuth();
+  const [currentUser, setCurrentUser] = useState<User | null>(user);
+  const [joinedRooms, setJoinedRooms] = useState<Room[]>([]);
+  const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [isAiTyping, setIsAiTyping] = useState(false);
+
+  // Modals & Views State
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isDiscoverModalOpen, setIsDiscoverModalOpen] = useState(false);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const [isFriendsModalOpen, setIsFriendsModalOpen] = useState(false);
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  const [pendingJoinRoom, setPendingJoinRoom] = useState<Room | null>(null);
+  const [isAdminViewOpen, setIsAdminViewOpen] = useState(false);
+
+  // Global Error State
+  const [appError, setAppError] = useState<AppError | null>(null);
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+
+  useEffect(() => {
+    setCurrentUser(user);
+  }, [user]);
+
+  useEffect(() => {
+    setGlobalErrorHandler((err) => {
+      setAppError(err);
+    });
+  }, []);
+
+  const activeRoom = joinedRooms.find((r) => r.id === activeRoomId) || null;
+
+  const fetchJoinedRooms = async () => {
+    try {
+      const data = await roomApi.getJoinedRooms();
+      setJoinedRooms(data);
+      if (data.length > 0 && !activeRoomId) {
+        handleSelectRoom(data[0].id);
+      }
+    } catch (err) {
+      console.error('Failed to fetch joined rooms:', err);
+    }
+  };
+
+  useEffect(() => {
+    fetchJoinedRooms();
+  }, []);
+
+  const handleIncomingWebSocketMessage = useCallback((payload: ChatMessagePayload) => {
+    if (payload.type === 'TYPING') {
+      setIsAiTyping(true);
+      return;
+    }
+
+    if (payload.type === 'IDLE') {
+      setIsAiTyping(false);
+      return;
+    }
+
+    if (payload.type === 'CHAT') {
+      const newMsg: Message = {
+        id: Date.now(),
+        senderId: payload.senderId,
+        senderName: payload.senderName,
+        content: payload.content || '',
+        messageType: (payload.messageType as any) || 'TEXT',
+        mediaUrl: payload.mediaUrl || undefined,
+        createdAt: payload.timestamp || new Date().toISOString(),
+      };
+      setMessages((prev) => [...prev, newMsg]);
+    }
+  }, []);
+
+  const handleSelectRoom = async (roomId: string) => {
+    try {
+      await executeJoinRoom(roomId);
+    } catch (err: any) {
+      const msg = err.response?.data?.message || err.message || '';
+      if (msg.toLowerCase().includes('password')) {
+        try {
+          const all = await roomApi.getRooms();
+          const target = all.find((r) => r.id === roomId);
+          if (target) {
+            setPendingJoinRoom(target);
+          }
+        } catch (e) {
+          console.error('Failed to get room for password prompt:', e);
+        }
+      }
+    }
+  };
+
+  const executeJoinRoom = async (roomId: string, password?: string) => {
+    setActiveRoomId(roomId);
+    setIsMobileSidebarOpen(false);
+    setIsAiTyping(false);
+
+    try {
+      await roomApi.joinRoom(roomId, password);
+      await fetchJoinedRooms();
+      const history = await roomApi.getMessages(roomId);
+      setMessages(history);
+
+      wsService.subscribeToRoom(roomId, handleIncomingWebSocketMessage);
+    } catch (err: any) {
+      console.error('Error joining room or fetching messages:', err);
+      throw err;
+    }
+  };
+
+  const handleCreateRoom = async (name: string, password?: string) => {
+    const newRoom = await roomApi.createRoom(name, password);
+    await fetchJoinedRooms();
+    executeJoinRoom(newRoom.id, password);
+  };
+
+  const handleSendMessage = (content: string) => {
+    if (!activeRoomId || !currentUser) return;
+
+    const payload: ChatMessagePayload = {
+      senderId: currentUser.id,
+      senderName: currentUser.displayName,
+      content,
+      messageType: 'TEXT',
+      type: 'CHAT',
+    };
+
+    wsService.sendMessage(activeRoomId, payload);
+  };
+
+  const handleRoomDeleted = (deletedId: string) => {
+    setJoinedRooms((prev) => prev.filter((r) => r.id !== deletedId));
+    if (activeRoomId === deletedId) {
+      setActiveRoomId(null);
+      setMessages([]);
+    }
+  };
+
+  if (appError) {
+    return <ErrorPage error={appError} onClearError={() => setAppError(null)} />;
+  }
+
+  if (isAdminViewOpen) {
+    return <AdminDashboard onClose={() => setIsAdminViewOpen(false)} />;
+  }
+
+  if (!currentUser) return null;
+
+  return (
+    <div className="flex h-screen w-screen bg-slate-950 text-slate-100 overflow-hidden relative">
+      {/* Mobile Sidebar Overlay */}
+      {isMobileSidebarOpen && (
+        <div
+          onClick={() => setIsMobileSidebarOpen(false)}
+          className="md:hidden fixed inset-0 z-40 bg-slate-950/80 backdrop-blur-sm"
+        />
+      )}
+
+      {/* Sidebar */}
+      <div
+        className={`fixed md:relative z-40 h-full transition-transform duration-300 ${
+          isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
+        }`}
+      >
+        <Sidebar
+          user={currentUser}
+          rooms={joinedRooms}
+          activeRoomId={activeRoomId}
+          onSelectRoom={handleSelectRoom}
+          onOpenCreateRoom={() => setIsCreateModalOpen(true)}
+          onOpenDiscoverRooms={() => setIsDiscoverModalOpen(true)}
+          onOpenProfile={() => setIsProfileModalOpen(true)}
+          onOpenFriends={() => setIsFriendsModalOpen(true)}
+          onOpenAdmin={() => setIsAdminViewOpen(true)}
+          onLogout={logout}
+          onCloseMobile={() => setIsMobileSidebarOpen(false)}
+        />
+      </div>
+
+      {/* Main Chat Area */}
+      <main className="flex-1 flex flex-col h-full min-w-0 bg-slate-950">
+        {activeRoom ? (
+          <>
+            <ChatHeader
+              room={activeRoom}
+              isAiTyping={isAiTyping}
+              onToggleSidebar={() => setIsMobileSidebarOpen(true)}
+              onOpenSettings={() => setIsSettingsModalOpen(true)}
+            />
+            <MessageFeed messages={messages} currentUserId={currentUser.id} />
+            <MessageInput onSendMessage={handleSendMessage} />
+          </>
+        ) : (
+          <div className="flex-1 flex flex-col items-center justify-center p-6 text-center text-slate-500">
+            <div className="w-16 h-16 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-center mb-4">
+              <MessageSquare className="w-8 h-8 text-slate-400" />
+            </div>
+            <h3 className="text-lg font-bold text-white mb-1">Select or Discover a Chat Room</h3>
+            <p className="text-sm text-slate-400 max-w-sm mb-6">
+              Choose a room from your joined list, explore public rooms with Discover, or start a new room!
+            </p>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setIsDiscoverModalOpen(true)}
+                className="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-white text-sm font-medium rounded-xl border border-slate-700 transition-all"
+              >
+                Discover Rooms
+              </button>
+              <button
+                onClick={() => setIsCreateModalOpen(true)}
+                className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium rounded-xl shadow-lg shadow-blue-600/20 flex items-center gap-2 transition-all"
+              >
+                <Sparkles className="w-4 h-4" />
+                <span>Create Room</span>
+              </button>
+            </div>
+          </div>
+        )}
+      </main>
+
+      {/* Modals */}
+      <CreateRoomModal
+        isOpen={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
+        onCreate={handleCreateRoom}
+      />
+
+      <DiscoverRoomsModal
+        isOpen={isDiscoverModalOpen}
+        onClose={() => setIsDiscoverModalOpen(false)}
+        onSelectRoom={handleSelectRoom}
+      />
+
+      <JoinRoomModal
+        room={pendingJoinRoom}
+        isOpen={!!pendingJoinRoom}
+        onClose={() => setPendingJoinRoom(null)}
+        onConfirmJoin={executeJoinRoom}
+      />
+
+      <RoomSettingsModal
+        room={activeRoom}
+        currentUser={currentUser}
+        isOpen={isSettingsModalOpen}
+        onClose={() => setIsSettingsModalOpen(false)}
+        onRoomDeleted={handleRoomDeleted}
+      />
+
+      <ProfileModal
+        user={currentUser}
+        isOpen={isProfileModalOpen}
+        onClose={() => setIsProfileModalOpen(false)}
+        onProfileUpdated={(updated) => setCurrentUser(updated)}
+        onLogout={logout}
+      />
+
+      <FriendsModal
+        isOpen={isFriendsModalOpen}
+        onClose={() => setIsFriendsModalOpen(false)}
+        onSelectRoom={handleSelectRoom}
+      />
+    </div>
+  );
+};

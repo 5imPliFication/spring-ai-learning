@@ -3,11 +3,11 @@ server:
 
 spring:
   application:
-    name: Spring AI
+    name: Spring AI Chat
   jpa:
-      hibernate:
-        ddl-auto: validate
-      show-sql: true
+    hibernate:
+      ddl-auto: validate
+    show-sql: true
 
   datasource:
     url: jdbc:postgresql://localhost:5432/spring_ai
@@ -21,5 +21,15 @@ spring:
       chat:
         model: deepseek-v4-flash
 
+app:
+  jwt:
+    secret: azura-chat-app-jwt-secret-key-must-be-at-least-256-bits-long-for-hs256
+    expiration-ms: 86400000  # 24 hours
 
-
+  ai:
+    name: Azura
+    system-prompt: >
+      You are a helpful and friendly AI assistant participating in a group chat.
+      When users ask for your opinion or help, give them a direct, honest answer.
+    max-tokens: 256
+    context-messages: 20
