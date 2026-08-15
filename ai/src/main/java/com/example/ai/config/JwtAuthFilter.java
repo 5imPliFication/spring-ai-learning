@@ -15,6 +15,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 
 @Component
@@ -23,6 +24,8 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
     private final JwtUtil jwtUtil;
     private final UserRepository userRepository;
+
+    private static final long ACTIVITY_UPDATE_THRESHOLD_MINUTES = 5;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
@@ -35,8 +38,12 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             if (jwtUtil.isValid(token)) {
                 String username = jwtUtil.extractUsername(token);
                 userRepository.findByUsernameAndDeletedAtIsNull(username).ifPresent(user -> {
-                    user.setLastActiveAt(Instant.now());
-                    userRepository.save(user);
+                    // Only update lastActiveAt if stale (older than threshold)
+                    // This prevents a SELECT+UPDATE on every single request
+                    if (shouldUpdateActivity(user)) {
+                        user.setLastActiveAt(Instant.now());
+                        userRepository.save(user);
+                    }
 
                     var auth = new UsernamePasswordAuthenticationToken(
                             user, null,
@@ -48,5 +55,13 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         }
 
         filterChain.doFilter(request, response);
+    }
+
+    private boolean shouldUpdateActivity(User user) {
+        if (user.getLastActiveAt() == null) {
+            return true;
+        }
+        return user.getLastActiveAt()
+                .isBefore(Instant.now().minus(ACTIVITY_UPDATE_THRESHOLD_MINUTES, ChronoUnit.MINUTES));
     }
 }

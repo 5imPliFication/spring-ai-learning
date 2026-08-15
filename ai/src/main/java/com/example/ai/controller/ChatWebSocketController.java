@@ -51,7 +51,7 @@ public class ChatWebSocketController {
                             ChatMessage.typing("ai-bot", aiName));
 
                     ChatResponse chatResponse = azuraService.generateResponse(roomId);
-                    String responseText = (chatResponse != null && chatResponse.getResult() != null && chatResponse.getResult().getOutput() != null)
+                    String responseText = chatResponse != null && chatResponse.getResult() != null
                             ? chatResponse.getResult().getOutput().getText()
                             : "Sorry, I couldn't generate a response.";
 

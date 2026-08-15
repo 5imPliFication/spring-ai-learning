@@ -103,7 +103,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <UserIcon className="w-3.5 h-3.5 text-slate-400" />
         </button>
 
-        {user.role === 'ADMIN' && onOpenAdmin && (
+        {user?.role?.toUpperCase() === 'ADMIN' && onOpenAdmin && (
           <button
             onClick={onOpenAdmin}
             className="py-2 px-3 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 rounded-xl text-emerald-400 text-xs font-semibold flex items-center justify-center gap-1.5 transition-all"

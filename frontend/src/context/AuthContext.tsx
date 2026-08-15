@@ -24,19 +24,35 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const savedToken = localStorage.getItem('token');
     const savedUserStr = localStorage.getItem('user');
 
-    if (savedToken && savedUserStr) {
-      try {
-        const savedUser: User = JSON.parse(savedUserStr);
-        setToken(savedToken);
-        setUser(savedUser);
-        wsService.connect();
-      } catch (err) {
-        console.error('Failed to parse saved user credentials', err);
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
+    if (savedToken) {
+      setToken(savedToken);
+      if (savedUserStr) {
+        try {
+          setUser(JSON.parse(savedUserStr));
+        } catch (e) {
+          console.error(e);
+        }
       }
+
+      // Fetch fresh profile from backend to ensure latest role & data
+      import('../services/api').then(({ userApi }) => {
+        userApi.getProfile()
+          .then((freshUser) => {
+            setUser(freshUser);
+            localStorage.setItem('user', JSON.stringify(freshUser));
+          })
+          .catch((err) => {
+            console.error('Failed to sync user profile:', err);
+          })
+          .finally(() => {
+            setIsLoading(false);
+          });
+      });
+
+      wsService.connect();
+    } else {
+      setIsLoading(false);
     }
-    setIsLoading(false);
   }, []);
 
   const handleAuthSuccess = (res: AuthResponse) => {
@@ -44,6 +60,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       id: res.userId,
       username: res.username,
       displayName: res.displayName,
+      role: res.role as User['role'],
     };
     setToken(res.token);
     setUser(authUser);

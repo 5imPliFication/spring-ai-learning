@@ -13,6 +13,7 @@ export interface AuthResponse {
   userId: string;
   username: string;
   displayName: string;
+  role: string;
 }
 
 export interface Room {

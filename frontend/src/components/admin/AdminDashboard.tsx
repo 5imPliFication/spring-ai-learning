@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import type { AdminDashboardStats, User, Room, Message } from '../../types';
 import { adminApi } from '../../services/api';
+import { useAuth } from '../../context/AuthContext';
 import {
   LayoutDashboard,
   MessageSquare,
@@ -11,6 +12,7 @@ import {
   RefreshCw,
   Loader2,
   Hash,
+  ShieldOff,
 } from 'lucide-react';
 
 interface AdminDashboardProps {
@@ -18,6 +20,29 @@ interface AdminDashboardProps {
 }
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
+  const { user: authUser } = useAuth();
+
+  // Hard frontend guard — if user is not ADMIN, deny access
+  if (!authUser || authUser.role !== 'ADMIN') {
+    return (
+      <div className="h-screen w-screen bg-slate-950 flex items-center justify-center p-6">
+        <div className="bg-slate-900 border border-red-500/20 rounded-3xl p-8 max-w-md text-center shadow-2xl">
+          <div className="w-16 h-16 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center mx-auto mb-4">
+            <ShieldOff className="w-8 h-8 text-red-400" />
+          </div>
+          <h2 className="text-xl font-bold text-white mb-2">Access Denied</h2>
+          <p className="text-sm text-slate-400 mb-6">You do not have administrator privileges to access this console.</p>
+          <button
+            onClick={onClose}
+            className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium rounded-xl shadow-lg shadow-blue-600/20 transition-all"
+          >
+            Return to Chat
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'rooms' | 'messages'>('overview');
   const [stats, setStats] = useState<AdminDashboardStats | null>(null);
   const [users, setUsers] = useState<User[]>([]);
