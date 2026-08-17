@@ -30,6 +30,9 @@ public class RoomMessage {
     @Column(name = "media_url", length = 500)
     private String mediaUrl;
 
+    @Column(name = "reply_to_id")
+    private Long replyToId;
+
     @Column(name = "prompt_tokens")
     private Integer promptTokens;
 

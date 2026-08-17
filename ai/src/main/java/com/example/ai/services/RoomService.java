@@ -2,7 +2,9 @@ package com.example.ai.services;
 
 import com.example.ai.dto.CreateProtectedRoomRequest;
 import com.example.ai.dto.MessageResponse;
+import com.example.ai.dto.RoomMemberResponse;
 import com.example.ai.dto.RoomResponse;
+import com.example.ai.dto.UpdateRoomRequest;
 import com.example.ai.entity.Room;
 import com.example.ai.entity.RoomMember;
 import com.example.ai.entity.RoomMessage;
@@ -12,15 +14,21 @@ import com.example.ai.repository.RoomMessageRepository;
 import com.example.ai.repository.RoomRepository;
 import com.example.ai.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
-import java.util.HashMap;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -32,6 +40,9 @@ public class RoomService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
 
+    @Value("${app.frontend.base-url}")
+    private String frontendBaseUrl;
+
     public RoomResponse createRoom(CreateProtectedRoomRequest request, String userId) {
         String hashedPassword = (request.password() != null && !request.password().isBlank())
                 ? passwordEncoder.encode(request.password())
@@ -42,6 +53,7 @@ public class RoomService {
                 .name(request.name().trim())
                 .type("GROUP")
                 .passwordHash(hashedPassword)
+                .isPrivate(request.isPrivate() != null && request.isPrivate())
                 .createdBy(userId)
                 .build();
         roomRepository.save(room);
@@ -57,52 +69,79 @@ public class RoomService {
     }
 
     public List<RoomResponse> getAllRooms() {
-        return roomRepository.findByDeletedAtIsNullOrderByCreatedAtDesc().stream()
+        return roomRepository.findPublicRooms(PageRequest.of(0, 100)).getContent().stream()
                 .map(this::toRoomResponse)
                 .toList();
     }
 
     public List<RoomResponse> getJoinedRooms(String userId) {
-        List<RoomMember> members = roomMemberRepository.findByUserId(userId);
-        List<String> joinedRoomIds = new java.util.ArrayList<>(members.stream().map(RoomMember::getRoomId).toList());
+        Map<String, Room> rooms = new LinkedHashMap<>();
+        roomRepository.findJoinedRoomsByUserId(userId).forEach(r -> rooms.putIfAbsent(r.getId(), r));
+        roomRepository.findByCreatedByAndDeletedAtIsNullOrderByCreatedAtDesc(userId)
+                .forEach(r -> rooms.putIfAbsent(r.getId(), r));
 
-        List<Room> createdRooms = roomRepository.findByDeletedAtIsNullOrderByCreatedAtDesc().stream()
-                .filter(r -> userId.equals(r.getCreatedBy()))
-                .toList();
-        for (Room r : createdRooms) {
-            if (!joinedRoomIds.contains(r.getId())) {
-                joinedRoomIds.add(r.getId());
-            }
-        }
-
-        return roomRepository.findAllById(joinedRoomIds).stream()
-                .filter(r -> r.getDeletedAt() == null)
+        return rooms.values().stream()
                 .map(this::toRoomResponse)
                 .toList();
     }
 
+    public RoomResponse getRoom(String roomId) {
+        return roomRepository.findByIdAndDeletedAtIsNull(roomId)
+                .map(this::toRoomResponse)
+                .orElseThrow(() -> new IllegalArgumentException("Room not found"));
+    }
+
     public List<RoomResponse> searchRooms(String query) {
-        return roomRepository.findByNameContainingIgnoreCaseAndDeletedAtIsNull(query).stream()
+        return roomRepository.findPublicRoomsByNameContaining(query, PageRequest.of(0, 100))
+                .getContent().stream()
                 .map(this::toRoomResponse)
                 .toList();
     }
 
     public List<MessageResponse> getMessages(String roomId) {
-        List<RoomMessage> messages = roomMessageRepository.findByRoomIdAndDeletedAtIsNullOrderByCreatedAtAsc(roomId);
-        Map<String, String> userNames = new HashMap<>();
+        List<RoomMessage> messages = new java.util.ArrayList<>(
+                roomMessageRepository.findTop200ByRoomIdOrderByCreatedAtDesc(roomId)
+        );
+        Collections.reverse(messages);
+
+        Set<String> senderIds = messages.stream()
+                .map(RoomMessage::getSenderId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        Map<String, String> userNames = userRepository.findAllById(senderIds).stream()
+                .collect(Collectors.toMap(User::getId, User::getDisplayName));
+
+        Set<Long> replyIds = messages.stream()
+                .map(RoomMessage::getReplyToId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        Map<Long, RoomMessage> repliesById = replyIds.isEmpty() ? Collections.emptyMap()
+                : roomMessageRepository.findAllById(replyIds).stream()
+                        .collect(Collectors.toMap(RoomMessage::getId, m -> m));
 
         return messages.stream().map(msg -> {
-            String senderName = userNames.computeIfAbsent(msg.getSenderId(), id ->
-                userRepository.findById(id).map(User::getDisplayName).orElse("Unknown")
-            );
+            boolean deleted = msg.getDeletedAt() != null;
+            Long replyToId = msg.getReplyToId();
+            RoomMessage reply = replyToId != null ? repliesById.get(replyToId) : null;
+            String replyToSenderName = null;
+            String replyToContent = null;
+            if (reply != null) {
+                replyToSenderName = userNames.getOrDefault(reply.getSenderId(), "Unknown");
+                replyToContent = reply.getDeletedAt() != null ? null : reply.getContent();
+            }
+
             return new MessageResponse(
                     msg.getId(),
                     msg.getSenderId(),
-                    senderName,
-                    msg.getContent(),
+                    userNames.getOrDefault(msg.getSenderId(), "Unknown"),
+                    deleted ? null : msg.getContent(),
                     msg.getMessageType(),
                     msg.getMediaUrl(),
-                    msg.getCreatedAt()
+                    msg.getCreatedAt(),
+                    replyToId,
+                    replyToSenderName,
+                    replyToContent,
+                    deleted
             );
         }).toList();
     }
@@ -163,7 +202,112 @@ public class RoomService {
             throw new IllegalArgumentException("Cannot kick yourself");
         }
 
+        if (targetUserId.equals(room.getCreatedBy())) {
+            throw new IllegalArgumentException("Cannot kick the room owner");
+        }
+
         roomMemberRepository.deleteByRoomIdAndUserId(roomId, targetUserId);
+    }
+
+    @Transactional
+    public void updateRoom(String roomId, UpdateRoomRequest request, User user) {
+        Room room = roomRepository.findByIdAndDeletedAtIsNull(roomId)
+                .orElseThrow(() -> new IllegalArgumentException("Room not found"));
+
+        boolean isOwner = room.getCreatedBy() != null && room.getCreatedBy().equals(user.getId());
+        boolean isAdmin = "ADMIN".equalsIgnoreCase(user.getRole());
+
+        if (!isOwner && !isAdmin) {
+            throw new IllegalArgumentException("Unauthorized to update this room. Only room owners or admins can update room settings.");
+        }
+
+        if (request.name() != null && !request.name().isBlank()) {
+            room.setName(request.name().trim());
+        }
+
+        if (request.password() != null) {
+            if (request.password().isBlank()) {
+                room.setPasswordHash(null);
+            } else {
+                room.setPasswordHash(passwordEncoder.encode(request.password()));
+            }
+        }
+
+        roomRepository.save(room);
+    }
+
+    public List<RoomMemberResponse> getMembers(String roomId, User user) {
+        Room room = roomRepository.findByIdAndDeletedAtIsNull(roomId)
+                .orElseThrow(() -> new IllegalArgumentException("Room not found"));
+
+        boolean isCreator = room.getCreatedBy() != null && room.getCreatedBy().equals(user.getId());
+        boolean isAdmin = "ADMIN".equalsIgnoreCase(user.getRole());
+        boolean isMember = roomMemberRepository.existsByRoomIdAndUserId(roomId, user.getId());
+
+        if (!isMember && !isCreator && !isAdmin) {
+            throw new IllegalArgumentException("Only room members can view the member list");
+        }
+
+        List<RoomMember> members = roomMemberRepository.findByRoomId(roomId);
+        Map<String, User> usersById = userRepository.findAllById(
+                        members.stream().map(RoomMember::getUserId).toList())
+                .stream()
+                .collect(Collectors.toMap(User::getId, u -> u));
+
+        return members.stream().map(m -> {
+            User u = usersById.get(m.getUserId());
+            return new RoomMemberResponse(
+                    m.getUserId(),
+                    u != null ? u.getUsername() : "unknown",
+                    u != null ? u.getDisplayName() : "Unknown",
+                    u != null ? u.getAvatarUrl() : null,
+                    m.getRole(),
+                    m.getJoinedAt()
+            );
+        }).toList();
+    }
+
+    @Transactional
+    public void deleteMessage(String roomId, Long messageId, User user) {
+        RoomMessage msg = roomMessageRepository.findById(messageId)
+                .orElseThrow(() -> new IllegalArgumentException("Message not found"));
+
+        if (!msg.getRoomId().equals(roomId)) {
+            throw new IllegalArgumentException("Message not found in this room");
+        }
+
+        Room room = roomRepository.findByIdAndDeletedAtIsNull(roomId)
+                .orElseThrow(() -> new IllegalArgumentException("Room not found"));
+
+        boolean isSender = msg.getSenderId().equals(user.getId());
+        boolean isOwner = room.getCreatedBy() != null && room.getCreatedBy().equals(user.getId());
+        boolean isAdmin = "ADMIN".equalsIgnoreCase(user.getRole());
+
+        if (!isSender && !isOwner && !isAdmin) {
+            throw new IllegalArgumentException("You can only delete your own messages");
+        }
+
+        if (msg.getDeletedAt() != null) {
+            return;
+        }
+
+        msg.setContent(null);
+        msg.setDeletedAt(Instant.now());
+        roomMessageRepository.save(msg);
+    }
+
+    public Map<String, String> getInviteLink(String roomId, User user) {
+        Room room = roomRepository.findByIdAndDeletedAtIsNull(roomId)
+                .orElseThrow(() -> new IllegalArgumentException("Room not found"));
+
+        boolean isOwner = room.getCreatedBy() != null && room.getCreatedBy().equals(user.getId());
+        boolean isAdmin = "ADMIN".equalsIgnoreCase(user.getRole());
+
+        if (!isOwner && !isAdmin) {
+            throw new IllegalArgumentException("Only the room owner can generate an invite link");
+        }
+
+        return Map.of("url", frontendBaseUrl + "/invite/" + room.getId());
     }
 
     private RoomResponse toRoomResponse(Room r) {
@@ -173,7 +317,8 @@ public class RoomService {
                 r.getType(),
                 r.getPasswordHash() != null,
                 r.getCreatedBy(),
-                r.getCreatedAt()
+                r.getCreatedAt(),
+                r.isPrivate()
         );
     }
 }

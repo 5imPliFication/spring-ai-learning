@@ -34,6 +34,18 @@ public class FriendController {
         return ResponseEntity.ok().build();
     }
 
+    @PostMapping("/decline/{friendshipId}")
+    public ResponseEntity<Void> declineFriendRequest(@AuthenticationPrincipal User user,
+                                                     @PathVariable Long friendshipId) {
+        friendService.declineFriendRequest(user, friendshipId);
+        return ResponseEntity.ok().build();
+    }
+
+    @GetMapping("/requests")
+    public ResponseEntity<List<FriendResponse>> getPendingRequests(@AuthenticationPrincipal User user) {
+        return ResponseEntity.ok(friendService.getPendingRequests(user));
+    }
+
     @GetMapping
     public ResponseEntity<List<FriendResponse>> getFriends(@AuthenticationPrincipal User user) {
         return ResponseEntity.ok(friendService.getFriends(user));
@@ -43,5 +55,12 @@ public class FriendController {
     public ResponseEntity<RoomResponse> createOrGetDM(@AuthenticationPrincipal User user,
                                                       @RequestParam String friendId) {
         return ResponseEntity.ok(friendService.createOrGetDirectMessageRoom(user, friendId));
+    }
+
+    @DeleteMapping("/{friendId}")
+    public ResponseEntity<Void> unfriend(@AuthenticationPrincipal User user,
+                                         @PathVariable String friendId) {
+        friendService.unfriend(user, friendId);
+        return ResponseEntity.noContent().build();
     }
 }

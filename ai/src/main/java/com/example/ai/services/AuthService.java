@@ -35,7 +35,7 @@ public class AuthService {
 
         userRepository.save(user);
 
-        String token = jwtUtil.generateToken(user.getUsername());
+        String token = jwtUtil.generateToken(user);
         return new AuthResponse(token, user.getId(), user.getUsername(), user.getDisplayName(), user.getRole());
     }
 
@@ -47,7 +47,7 @@ public class AuthService {
             throw new IllegalArgumentException("Invalid username or password");
         }
 
-        String token = jwtUtil.generateToken(user.getUsername());
+        String token = jwtUtil.generateToken(user);
         return new AuthResponse(token, user.getId(), user.getUsername(), user.getDisplayName(), user.getRole());
     }
 }

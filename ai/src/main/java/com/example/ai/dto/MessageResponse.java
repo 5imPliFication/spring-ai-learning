@@ -9,5 +9,9 @@ public record MessageResponse(
     String content,
     String messageType,
     String mediaUrl,
-    Instant createdAt
+    Instant createdAt,
+    Long replyToId,
+    String replyToSenderName,
+    String replyToContent,
+    boolean deleted
 ) {}

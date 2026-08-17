@@ -1,16 +1,17 @@
 import React, { useState } from 'react';
-import { X, Hash, Plus, Lock, Loader2 } from 'lucide-react';
+import { X, Hash, Plus, Lock, EyeOff, Loader2 } from 'lucide-react';
 
 interface CreateRoomModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onCreate: (name: string, password?: string) => Promise<void>;
+  onCreate: (name: string, password?: string, isPrivate?: boolean) => Promise<void>;
 }
 
 export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ isOpen, onClose, onCreate }) => {
   const [name, setName] = useState('');
   const [isProtected, setIsProtected] = useState(false);
   const [password, setPassword] = useState('');
+  const [isPrivate, setIsPrivate] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   if (!isOpen) return null;
@@ -21,10 +22,11 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ isOpen, onClos
 
     setIsSubmitting(true);
     try {
-      await onCreate(name.trim(), isProtected && password ? password.trim() : undefined);
+      await onCreate(name.trim(), isProtected && password ? password.trim() : undefined, isPrivate);
       setName('');
       setPassword('');
       setIsProtected(false);
+      setIsPrivate(false);
       onClose();
     } catch (err) {
       console.error('Failed to create room:', err);
@@ -44,7 +46,7 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ isOpen, onClos
         </button>
 
         <h2 className="text-xl font-bold text-white tracking-tight mb-1">Create Chat Room</h2>
-        <p className="text-slate-400 text-xs mb-6">Create a public or password-protected room</p>
+        <p className="text-slate-400 text-xs mb-6">Create a public, private, or password-protected room</p>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
@@ -62,6 +64,22 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ isOpen, onClos
                 className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-colors"
               />
             </div>
+          </div>
+
+          <div className="flex items-center justify-between p-3 rounded-2xl bg-slate-950/60 border border-slate-800">
+            <div className="flex items-center gap-2">
+              <EyeOff className="w-4 h-4 text-violet-400" />
+              <div>
+                <h4 className="text-xs font-bold text-white">Private Room</h4>
+                <p className="text-[11px] text-slate-400">Hidden from Discover; join only via invite link</p>
+              </div>
+            </div>
+            <input
+              type="checkbox"
+              checked={isPrivate}
+              onChange={(e) => setIsPrivate(e.target.checked)}
+              className="w-4 h-4 accent-violet-600 rounded cursor-pointer"
+            />
           </div>
 
           <div className="flex items-center justify-between p-3 rounded-2xl bg-slate-950/60 border border-slate-800">

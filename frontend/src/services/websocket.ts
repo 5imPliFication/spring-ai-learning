@@ -5,7 +5,7 @@ import type { ChatMessagePayload } from '../types';
 
 export class WebSocketService {
   private client: Client | null = null;
-  private currentSubscription: StompSubscription | null = null;
+  private subscriptions = new Map<string, StompSubscription>();
   private isConnected = false;
 
   public connect(onConnected?: () => void, onError?: (err: any) => void): void {
@@ -42,12 +42,11 @@ export class WebSocketService {
       return;
     }
 
-    if (this.currentSubscription) {
-      this.currentSubscription.unsubscribe();
-      this.currentSubscription = null;
+    if (this.subscriptions.has(roomId)) {
+      return;
     }
 
-    this.currentSubscription = this.client.subscribe(`/topic/room/${roomId}`, (frame) => {
+    const sub = this.client.subscribe(`/topic/room/${roomId}`, (frame) => {
       try {
         const payload: ChatMessagePayload = JSON.parse(frame.body);
         onMessageReceived(payload);
@@ -55,6 +54,20 @@ export class WebSocketService {
         console.error('[WebSocket] Error parsing message payload:', err);
       }
     });
+
+    this.subscriptions.set(roomId, sub);
+  }
+
+  public unsubscribeRoom(roomId: string): void {
+    const sub = this.subscriptions.get(roomId);
+    if (sub) {
+      sub.unsubscribe();
+      this.subscriptions.delete(roomId);
+    }
+  }
+
+  public isSubscribed(roomId: string): boolean {
+    return this.subscriptions.has(roomId);
   }
 
   public sendMessage(roomId: string, payload: ChatMessagePayload): void {
@@ -70,10 +83,8 @@ export class WebSocketService {
   }
 
   public disconnect(): void {
-    if (this.currentSubscription) {
-      this.currentSubscription.unsubscribe();
-      this.currentSubscription = null;
-    }
+    this.subscriptions.forEach((sub) => sub.unsubscribe());
+    this.subscriptions.clear();
     if (this.client) {
       this.client.deactivate();
       this.client = null;

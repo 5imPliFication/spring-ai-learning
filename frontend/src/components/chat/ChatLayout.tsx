@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useParams, useNavigate } from 'react-router';
 import { useAuth } from '../../context/AuthContext';
 import type { Room, Message, ChatMessagePayload, User, AppError } from '../../types';
 import { roomApi, setGlobalErrorHandler } from '../../services/api';
@@ -19,11 +20,15 @@ import { MessageSquare, Sparkles } from 'lucide-react';
 
 export const ChatLayout: React.FC = () => {
   const { user, logout } = useAuth();
+  const { roomId } = useParams();
+  const navigate = useNavigate();
   const [currentUser, setCurrentUser] = useState<User | null>(user);
   const [joinedRooms, setJoinedRooms] = useState<Room[]>([]);
   const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [isAiTyping, setIsAiTyping] = useState(false);
+  const [replyingTo, setReplyingTo] = useState<Message | null>(null);
+  const joiningRoomRef = useRef<string | null>(null);
 
   // Modals & Views State
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -33,6 +38,7 @@ export const ChatLayout: React.FC = () => {
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [pendingJoinRoom, setPendingJoinRoom] = useState<Room | null>(null);
   const [isAdminViewOpen, setIsAdminViewOpen] = useState(false);
+  const [friendsRefreshKey, setFriendsRefreshKey] = useState(0);
 
   // Global Error State
   const [appError, setAppError] = useState<AppError | null>(null);
@@ -50,21 +56,29 @@ export const ChatLayout: React.FC = () => {
 
   const activeRoom = joinedRooms.find((r) => r.id === activeRoomId) || null;
 
-  const fetchJoinedRooms = async () => {
-    try {
-      const data = await roomApi.getJoinedRooms();
-      setJoinedRooms(data);
-      if (data.length > 0 && !activeRoomId) {
-        handleSelectRoom(data[0].id);
-      }
-    } catch (err) {
-      console.error('Failed to fetch joined rooms:', err);
-    }
-  };
+  const fetchJoinedRooms = useCallback(async () => {
+    const data = await roomApi.getJoinedRooms();
+    setJoinedRooms(data);
+    return data;
+  }, []);
 
   useEffect(() => {
-    fetchJoinedRooms();
-  }, []);
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await fetchJoinedRooms();
+        if (cancelled) return;
+        if (!roomId && data.length > 0) {
+          navigate(`/rooms/${data[0].id}`, { replace: true });
+        }
+      } catch (err) {
+        console.error('Failed to load joined rooms:', err);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [fetchJoinedRooms, roomId, navigate]);
 
   const handleIncomingWebSocketMessage = useCallback((payload: ChatMessagePayload) => {
     if (payload.type === 'TYPING') {
@@ -77,40 +91,42 @@ export const ChatLayout: React.FC = () => {
       return;
     }
 
+    if (payload.type === 'DELETE') {
+      if (payload.messageId != null) {
+        setMessages((prev) =>
+          prev.map((m) => (m.id === payload.messageId ? { ...m, deleted: true, content: '' } : m))
+        );
+      }
+      return;
+    }
+
     if (payload.type === 'CHAT') {
-      const newMsg: Message = {
-        id: Date.now(),
-        senderId: payload.senderId,
-        senderName: payload.senderName,
-        content: payload.content || '',
-        messageType: (payload.messageType as any) || 'TEXT',
-        mediaUrl: payload.mediaUrl || undefined,
-        createdAt: payload.timestamp || new Date().toISOString(),
-      };
-      setMessages((prev) => [...prev, newMsg]);
+      if (payload.senderId === 'ai-bot') {
+        setIsAiTyping(false);
+      }
+      setMessages((prev) => {
+        const replyMsg = payload.replyToId != null
+          ? prev.find((m) => m.id === payload.replyToId)
+          : undefined;
+        const newMsg: Message = {
+          id: payload.messageId ?? Date.now(),
+          senderId: payload.senderId,
+          senderName: payload.senderName,
+          content: payload.content || '',
+          messageType: (payload.messageType as any) || 'TEXT',
+          mediaUrl: payload.mediaUrl || undefined,
+          createdAt: payload.timestamp || new Date().toISOString(),
+          replyToId: payload.replyToId ?? undefined,
+          replyToSenderName: replyMsg?.senderName,
+          replyToContent: replyMsg?.deleted ? undefined : replyMsg?.content,
+          deleted: false,
+        };
+        return [...prev, newMsg];
+      });
     }
   }, []);
 
-  const handleSelectRoom = async (roomId: string) => {
-    try {
-      await executeJoinRoom(roomId);
-    } catch (err: any) {
-      const msg = err.response?.data?.message || err.message || '';
-      if (msg.toLowerCase().includes('password')) {
-        try {
-          const all = await roomApi.getRooms();
-          const target = all.find((r) => r.id === roomId);
-          if (target) {
-            setPendingJoinRoom(target);
-          }
-        } catch (e) {
-          console.error('Failed to get room for password prompt:', e);
-        }
-      }
-    }
-  };
-
-  const executeJoinRoom = async (roomId: string, password?: string) => {
+  const executeJoinRoom = useCallback(async (roomId: string, password?: string) => {
     setActiveRoomId(roomId);
     setIsMobileSidebarOpen(false);
     setIsAiTyping(false);
@@ -120,21 +136,52 @@ export const ChatLayout: React.FC = () => {
       await fetchJoinedRooms();
       const history = await roomApi.getMessages(roomId);
       setMessages(history);
+      setReplyingTo(null);
 
       wsService.subscribeToRoom(roomId, handleIncomingWebSocketMessage);
     } catch (err: any) {
       console.error('Error joining room or fetching messages:', err);
       throw err;
     }
+  }, [fetchJoinedRooms, handleIncomingWebSocketMessage]);
+
+  const handleSelectRoom = (roomId: string) => {
+    navigate(`/rooms/${roomId}`);
   };
 
-  const handleCreateRoom = async (name: string, password?: string) => {
-    const newRoom = await roomApi.createRoom(name, password);
+  useEffect(() => {
+    if (!roomId || joiningRoomRef.current === roomId) return;
+
+    joiningRoomRef.current = roomId;
+    executeJoinRoom(roomId)
+      .catch((err: any) => {
+        const msg = err.response?.data?.message || err.message || '';
+        if (msg.toLowerCase().includes('password')) {
+          (async () => {
+            try {
+              const all = await roomApi.getRooms();
+              const target = all.find((r) => r.id === roomId);
+              if (target) {
+                setPendingJoinRoom(target);
+              }
+            } catch (e) {
+              console.error('Failed to get room for password prompt:', e);
+            }
+          })();
+        }
+      })
+      .finally(() => {
+        if (joiningRoomRef.current === roomId) joiningRoomRef.current = null;
+      });
+  }, [roomId, executeJoinRoom]);
+
+  const handleCreateRoom = async (name: string, password?: string, isPrivate?: boolean) => {
+    const newRoom = await roomApi.createRoom(name, password, isPrivate);
     await fetchJoinedRooms();
-    executeJoinRoom(newRoom.id, password);
+    navigate(`/rooms/${newRoom.id}`);
   };
 
-  const handleSendMessage = (content: string) => {
+  const handleSendMessage = (content: string, replyToId?: number) => {
     if (!activeRoomId || !currentUser) return;
 
     const payload: ChatMessagePayload = {
@@ -143,9 +190,23 @@ export const ChatLayout: React.FC = () => {
       content,
       messageType: 'TEXT',
       type: 'CHAT',
+      replyToId,
     };
 
     wsService.sendMessage(activeRoomId, payload);
+    if (replyToId) setReplyingTo(null);
+  };
+
+  const handleDeleteMessage = async (messageId: number) => {
+    if (!activeRoomId) return;
+    try {
+      await roomApi.deleteMessage(activeRoomId, messageId);
+      setMessages((prev) =>
+        prev.map((m) => (m.id === messageId ? { ...m, deleted: true, content: '' } : m))
+      );
+    } catch (err) {
+      console.error('Failed to delete message:', err);
+    }
   };
 
   const handleRoomDeleted = (deletedId: string) => {
@@ -153,6 +214,7 @@ export const ChatLayout: React.FC = () => {
     if (activeRoomId === deletedId) {
       setActiveRoomId(null);
       setMessages([]);
+      navigate('/');
     }
   };
 
@@ -194,6 +256,7 @@ export const ChatLayout: React.FC = () => {
           onOpenAdmin={() => setIsAdminViewOpen(true)}
           onLogout={logout}
           onCloseMobile={() => setIsMobileSidebarOpen(false)}
+          friendsRefreshKey={friendsRefreshKey}
         />
       </div>
 
@@ -207,8 +270,20 @@ export const ChatLayout: React.FC = () => {
               onToggleSidebar={() => setIsMobileSidebarOpen(true)}
               onOpenSettings={() => setIsSettingsModalOpen(true)}
             />
-            <MessageFeed messages={messages} currentUserId={currentUser.id} />
-            <MessageInput onSendMessage={handleSendMessage} />
+            <MessageFeed
+              messages={messages}
+              currentUserId={currentUser.id}
+              isAiTyping={isAiTyping}
+              roomOwnerId={activeRoom.createdBy}
+              currentUserRole={currentUser.role}
+              onReply={setReplyingTo}
+              onDelete={handleDeleteMessage}
+            />
+            <MessageInput
+              onSendMessage={handleSendMessage}
+              replyingTo={replyingTo}
+              onCancelReply={() => setReplyingTo(null)}
+            />
           </>
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center p-6 text-center text-slate-500">
@@ -264,6 +339,7 @@ export const ChatLayout: React.FC = () => {
         isOpen={isSettingsModalOpen}
         onClose={() => setIsSettingsModalOpen(false)}
         onRoomDeleted={handleRoomDeleted}
+        onRoomUpdated={fetchJoinedRooms}
       />
 
       <ProfileModal
@@ -278,6 +354,7 @@ export const ChatLayout: React.FC = () => {
         isOpen={isFriendsModalOpen}
         onClose={() => setIsFriendsModalOpen(false)}
         onSelectRoom={handleSelectRoom}
+        onFriendListChanged={() => setFriendsRefreshKey((k) => k + 1)}
       />
     </div>
   );

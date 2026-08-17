@@ -21,6 +21,7 @@ export interface Room {
   name: string;
   type: 'GROUP' | 'DIRECT';
   isProtected?: boolean;
+  isPrivate?: boolean;
   createdBy?: string;
   createdAt: string;
 }
@@ -33,6 +34,10 @@ export interface Message {
   messageType: 'TEXT' | 'IMAGE' | 'FILE' | 'AUDIO';
   mediaUrl?: string;
   createdAt: string;
+  replyToId?: number;
+  replyToSenderName?: string;
+  replyToContent?: string;
+  deleted?: boolean;
 }
 
 export interface ChatMessagePayload {
@@ -41,8 +46,11 @@ export interface ChatMessagePayload {
   content: string | null;
   messageType?: string;
   mediaUrl?: string | null;
-  type: 'CHAT' | 'TYPING' | 'IDLE';
+  type: 'CHAT' | 'TYPING' | 'IDLE' | 'DELETE';
   timestamp?: string;
+  replyToId?: number;
+  messageId?: number;
+  deleted?: boolean;
 }
 
 export interface Friend {
@@ -53,6 +61,20 @@ export interface Friend {
   friendAvatarUrl?: string;
   status: 'PENDING' | 'ACCEPTED';
   createdAt: string;
+}
+
+export interface RoomMember {
+  userId: string;
+  username: string;
+  displayName: string;
+  avatarUrl?: string;
+  role: 'OWNER' | 'MEMBER';
+  joinedAt: string;
+}
+
+export interface UpdateRoomRequest {
+  name?: string;
+  password?: string;
 }
 
 export interface AdminDashboardStats {

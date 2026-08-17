@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import type { Room } from '../../types';
 import { roomApi } from '../../services/api';
-import { Search, X, Hash, Lock, Globe, ArrowRight, Loader2 } from 'lucide-react';
+import { Search, X, Hash, Lock, Globe, ArrowRight, Loader2, EyeOff } from 'lucide-react';
 
 interface DiscoverRoomsModalProps {
   isOpen: boolean;
@@ -108,7 +108,13 @@ export const DiscoverRoomsModal: React.FC<DiscoverRoomsModalProps> = ({
               >
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 rounded-xl bg-slate-800 flex items-center justify-center text-slate-400">
-                    {r.isProtected ? <Lock className="w-4 h-4 text-amber-400" /> : <Hash className="w-4 h-4" />}
+                    {r.isPrivate ? (
+                    <EyeOff className="w-4 h-4 text-violet-400" />
+                  ) : r.isProtected ? (
+                    <Lock className="w-4 h-4 text-amber-400" />
+                  ) : (
+                    <Hash className="w-4 h-4" />
+                  )}
                   </div>
                   <div>
                     <h4 className="text-sm font-bold text-white leading-tight flex items-center gap-2">

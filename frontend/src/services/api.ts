@@ -5,8 +5,10 @@ import type {
   Message,
   User,
   Friend,
+  RoomMember,
   AdminDashboardStats,
   UpdateProfileRequest,
+  UpdateRoomRequest,
 } from '../types';
 
 const API_BASE_URL = '/api/v1';
@@ -104,6 +106,15 @@ export const friendApi = {
     await apiClient.post(`/friends/accept/${friendshipId}`);
   },
 
+  declineRequest: async (friendshipId: number): Promise<void> => {
+    await apiClient.post(`/friends/decline/${friendshipId}`);
+  },
+
+  getRequests: async (): Promise<Friend[]> => {
+    const res = await apiClient.get<Friend[]>('/friends/requests');
+    return res.data;
+  },
+
   getFriends: async (): Promise<Friend[]> => {
     const res = await apiClient.get<Friend[]>('/friends');
     return res.data;
@@ -112,6 +123,10 @@ export const friendApi = {
   getOrCreateDM: async (friendId: string): Promise<Room> => {
     const res = await apiClient.post<Room>(`/friends/dm?friendId=${encodeURIComponent(friendId)}`);
     return res.data;
+  },
+
+  unfriend: async (friendId: string): Promise<void> => {
+    await apiClient.delete(`/friends/${encodeURIComponent(friendId)}`);
   },
 };
 
@@ -131,14 +146,33 @@ export const roomApi = {
     return res.data;
   },
 
-  createRoom: async (name: string, password?: string): Promise<Room> => {
-    const res = await apiClient.post<Room>('/rooms', { name, password });
+  createRoom: async (name: string, password?: string, isPrivate?: boolean): Promise<Room> => {
+    const res = await apiClient.post<Room>('/rooms', { name, password, isPrivate });
+    return res.data;
+  },
+
+  getRoom: async (roomId: string): Promise<Room> => {
+    const res = await apiClient.get<Room>(`/rooms/${roomId}`);
+    return res.data;
+  },
+
+  getInviteLink: async (roomId: string): Promise<{ url: string }> => {
+    const res = await apiClient.get<{ url: string }>(`/rooms/${roomId}/invite`);
     return res.data;
   },
 
   getMessages: async (roomId: string): Promise<Message[]> => {
     const res = await apiClient.get<Message[]>(`/rooms/${roomId}/messages`);
     return res.data;
+  },
+
+  getMembers: async (roomId: string): Promise<RoomMember[]> => {
+    const res = await apiClient.get<RoomMember[]>(`/rooms/${roomId}/members`);
+    return res.data;
+  },
+
+  updateRoom: async (roomId: string, data: UpdateRoomRequest): Promise<void> => {
+    await apiClient.patch(`/rooms/${roomId}`, data);
   },
 
   joinRoom: async (roomId: string, password?: string): Promise<void> => {
@@ -151,6 +185,10 @@ export const roomApi = {
 
   kickMember: async (roomId: string, targetUserId: string): Promise<void> => {
     await apiClient.delete(`/rooms/${roomId}/members/${targetUserId}`);
+  },
+
+  deleteMessage: async (roomId: string, messageId: number): Promise<void> => {
+    await apiClient.delete(`/rooms/${roomId}/messages/${messageId}`);
   },
 };
 

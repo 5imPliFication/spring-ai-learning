@@ -8,5 +8,6 @@ public record RoomResponse(
     String type,
     boolean isProtected,
     String createdBy,
-    Instant createdAt
+    Instant createdAt,
+    boolean isPrivate
 ) {}

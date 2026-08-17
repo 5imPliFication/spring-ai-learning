@@ -5,5 +5,6 @@ import jakarta.validation.constraints.Size;
 
 public record CreateProtectedRoomRequest(
     @NotBlank @Size(max = 100) String name,
-    String password
+    String password,
+    Boolean isPrivate
 ) {}

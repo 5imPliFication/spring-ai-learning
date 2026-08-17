@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import type { Room, User, Friend } from '../../types';
 import { friendApi } from '../../services/api';
 import { Avatar } from '../ui/Avatar';
-import { Hash, Plus, LogOut, Search, X, Users, User as UserIcon, ShieldAlert, Lock, Compass, MessageSquare } from 'lucide-react';
+import { Hash, Plus, LogOut, Search, X, Users, User as UserIcon, ShieldAlert, Lock, Compass, MessageSquare, EyeOff } from 'lucide-react';
 
 interface SidebarProps {
   user: User;
@@ -16,6 +16,7 @@ interface SidebarProps {
   onOpenAdmin?: () => void;
   onLogout: () => void;
   onCloseMobile?: () => void;
+  friendsRefreshKey?: number;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -30,13 +31,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onOpenAdmin,
   onLogout,
   onCloseMobile,
+  friendsRefreshKey = 0,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [friendsList, setFriendsList] = useState<Friend[]>([]);
+  const [dmLoadingId, setDmLoadingId] = useState<string | null>(null);
 
   useEffect(() => {
     loadFriendsPreview();
-  }, []);
+  }, [friendsRefreshKey]);
 
   const loadFriendsPreview = async () => {
     try {
@@ -47,16 +50,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
     }
   };
 
-  const filteredRooms = rooms.filter((r) =>
-    r.name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredRooms = rooms
+    .filter((r) => r.type !== 'DIRECT')
+    .filter((r) => r.name.toLowerCase().includes(searchTerm.toLowerCase()));
 
   const handleStartDM = async (friendId: string) => {
+    if (dmLoadingId) return;
+    setDmLoadingId(friendId);
     try {
       const dmRoom = await friendApi.getOrCreateDM(friendId);
       onSelectRoom(dmRoom.id);
     } catch (err) {
-      console.error('Failed to start DM from sidebar:', err);
+      console.error('Failed to start DM:', err);
+    } finally {
+      setDmLoadingId(null);
     }
   };
 
@@ -134,25 +141,23 @@ export const Sidebar: React.FC<SidebarProps> = ({
             No friends added yet. Click "Manage" to add friends!
           </div>
         ) : (
-          <div className="space-y-1 max-h-36 overflow-y-auto pr-1">
-            {friendsList.slice(0, 4).map((f) => (
-              <div
-                key={f.id}
-                className="flex items-center justify-between p-2 rounded-xl bg-slate-900/80 hover:bg-slate-800 border border-slate-800/60 transition-colors"
-              >
-                <div className="flex items-center gap-2 min-w-0">
-                  <Avatar name={f.friendDisplayName} size="sm" />
-                  <span className="text-xs font-medium text-slate-200 truncate">{f.friendDisplayName}</span>
-                </div>
+          <div className="space-y-1 max-h-72 overflow-y-auto pr-1">
+            {friendsList.map((f) => {
+              const isLoading = dmLoadingId === f.friendId;
+              return (
                 <button
+                  key={f.id}
                   onClick={() => handleStartDM(f.friendId)}
-                  title="Direct Message"
-                  className="p-1 rounded-lg bg-blue-600/10 hover:bg-blue-600/20 text-blue-400"
+                  disabled={isLoading}
+                  title={`Message ${f.friendDisplayName}`}
+                  className="w-full flex items-center gap-2 p-2 rounded-xl bg-slate-900/80 hover:bg-slate-800 border border-slate-800/60 transition-colors disabled:opacity-60 disabled:cursor-wait text-left"
                 >
-                  <MessageSquare className="w-3 h-3" />
+                  <Avatar name={f.friendDisplayName} size="sm" />
+                  <span className="text-xs font-medium text-slate-200 truncate flex-1">{f.friendDisplayName}</span>
+                  <MessageSquare className="w-3 h-3 text-blue-400 shrink-0" />
                 </button>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
@@ -216,7 +221,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     isActive ? 'bg-white/20 text-white' : 'bg-slate-800 text-slate-400'
                   }`}
                 >
-                  {room.isProtected ? <Lock className="w-3 h-3 text-amber-400" /> : <Hash className="w-3.5 h-3.5" />}
+                  {room.isPrivate ? (
+                    <EyeOff className="w-3 h-3 text-violet-400" />
+                  ) : room.isProtected ? (
+                    <Lock className="w-3 h-3 text-amber-400" />
+                  ) : (
+                    <Hash className="w-3.5 h-3.5" />
+                  )}
                 </div>
                 <span className="truncate flex-1">{room.name}</span>
               </button>

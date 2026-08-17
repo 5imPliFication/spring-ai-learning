@@ -11,8 +11,12 @@ import java.util.List;
 public interface RoomMessageRepository extends JpaRepository<RoomMessage, Long> {
     List<RoomMessage> findByRoomIdAndDeletedAtIsNullOrderByCreatedAtAsc(String roomId);
     List<RoomMessage> findTop20ByRoomIdAndDeletedAtIsNullOrderByCreatedAtDesc(String roomId);
+    List<RoomMessage> findTop200ByRoomIdAndDeletedAtIsNullOrderByCreatedAtDesc(String roomId);
+    List<RoomMessage> findTop200ByRoomIdOrderByCreatedAtDesc(String roomId);
 
     long countByCreatedAtGreaterThanEqualAndDeletedAtIsNull(Instant since);
+
+    void deleteByRoomId(String roomId);
 
     @Query("SELECT COALESCE(SUM(m.totalTokens), 0) FROM RoomMessage m WHERE m.createdAt >= :since AND m.deletedAt IS NULL")
     long sumTotalTokensSince(@Param("since") Instant since);

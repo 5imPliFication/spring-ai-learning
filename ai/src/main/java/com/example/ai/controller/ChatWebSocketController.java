@@ -38,11 +38,12 @@ public class ChatWebSocketController {
                 .senderId(message.senderId())
                 .content(message.content())
                 .messageType("TEXT")
+                .replyToId(message.replyToId())
                 .build();
         roomMessageRepository.save(msg);
 
         messagingTemplate.convertAndSend("/topic/room/" + roomId,
-                ChatMessage.chat(message.senderId(), senderName, message.content()));
+                ChatMessage.chatReply(msg.getId(), message.senderId(), senderName, message.content(), message.replyToId()));
 
         if (message.content() != null && message.content().toLowerCase().contains("@ai")) {
             CompletableFuture.runAsync(() -> {
@@ -55,10 +56,10 @@ public class ChatWebSocketController {
                             ? chatResponse.getResult().getOutput().getText()
                             : "Sorry, I couldn't generate a response.";
 
-                    azuraService.saveAzuraMessage(roomId, responseText, chatResponse);
+                    RoomMessage aiMsg = azuraService.saveAzuraMessage(roomId, responseText, chatResponse);
 
                     messagingTemplate.convertAndSend("/topic/room/" + roomId,
-                            ChatMessage.chat("ai-bot", aiName, responseText));
+                            ChatMessage.chat(aiMsg.getId(), "ai-bot", aiName, responseText));
 
                     messagingTemplate.convertAndSend("/topic/room/" + roomId,
                             ChatMessage.idle("ai-bot", aiName));

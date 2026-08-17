@@ -1,5 +1,5 @@
 import React from 'react';
-import { Hash, Sparkles, Menu, Settings, Lock } from 'lucide-react';
+import { Hash, Sparkles, Menu, Settings, Lock, EyeOff } from 'lucide-react';
 import type { Room } from '../../types';
 
 interface ChatHeaderProps {
@@ -29,7 +29,13 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
           </button>
         )}
         <div className="w-8 h-8 rounded-lg bg-slate-800 flex items-center justify-center text-slate-400">
-          {room.isProtected ? <Lock className="w-4 h-4 text-amber-400" /> : <Hash className="w-4 h-4" />}
+          {room.isPrivate ? (
+            <EyeOff className="w-4 h-4 text-violet-400" />
+          ) : room.isProtected ? (
+            <Lock className="w-4 h-4 text-amber-400" />
+          ) : (
+            <Hash className="w-4 h-4" />
+          )}
         </div>
         <div>
           <h2 className="text-base font-bold text-white tracking-tight flex items-center gap-2">

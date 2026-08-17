@@ -18,11 +18,16 @@ public class UserService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
 
-    public UserProfileResponse getProfile(User user) {
+    public UserProfileResponse getProfile(User principal) {
+        User user = userRepository.findById(principal.getId())
+                .orElseThrow(() -> new IllegalArgumentException("User not found"));
         return toProfileResponse(user);
     }
 
-    public UserProfileResponse updateProfile(User user, UpdateProfileRequest request) {
+    public UserProfileResponse updateProfile(User principal, UpdateProfileRequest request) {
+        User user = userRepository.findById(principal.getId())
+                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+
         if (request.displayName() != null && !request.displayName().isBlank()) {
             user.setDisplayName(request.displayName().trim());
         }
@@ -40,7 +45,9 @@ public class UserService {
         return toProfileResponse(user);
     }
 
-    public void softDeleteOwnAccount(User user) {
+    public void softDeleteOwnAccount(User principal) {
+        User user = userRepository.findById(principal.getId())
+                .orElseThrow(() -> new IllegalArgumentException("User not found"));
         user.setDeletedAt(Instant.now());
         userRepository.save(user);
     }

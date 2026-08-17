@@ -1,7 +1,7 @@
 package com.example.ai.config;
 
 import com.example.ai.entity.User;
-import com.example.ai.repository.UserRepository;
+import com.example.ai.services.UserActivityService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -14,8 +14,6 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
-import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import java.util.List;
 
 @Component
@@ -23,9 +21,7 @@ import java.util.List;
 public class JwtAuthFilter extends OncePerRequestFilter {
 
     private final JwtUtil jwtUtil;
-    private final UserRepository userRepository;
-
-    private static final long ACTIVITY_UPDATE_THRESHOLD_MINUTES = 5;
+    private final UserActivityService userActivityService;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
@@ -36,32 +32,23 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         if (header != null && header.startsWith("Bearer ")) {
             String token = header.substring(7);
             if (jwtUtil.isValid(token)) {
-                String username = jwtUtil.extractUsername(token);
-                userRepository.findByUsernameAndDeletedAtIsNull(username).ifPresent(user -> {
-                    // Only update lastActiveAt if stale (older than threshold)
-                    // This prevents a SELECT+UPDATE on every single request
-                    if (shouldUpdateActivity(user)) {
-                        user.setLastActiveAt(Instant.now());
-                        userRepository.save(user);
-                    }
+                User user = User.builder()
+                        .id(jwtUtil.extractUserId(token))
+                        .username(jwtUtil.extractUsername(token))
+                        .displayName(jwtUtil.extractDisplayName(token))
+                        .role(jwtUtil.extractRole(token))
+                        .build();
 
-                    var auth = new UsernamePasswordAuthenticationToken(
-                            user, null,
-                            List.of(new SimpleGrantedAuthority("ROLE_" + user.getRole()))
-                    );
-                    SecurityContextHolder.getContext().setAuthentication(auth);
-                });
+                userActivityService.recordActivity(user.getId());
+
+                var auth = new UsernamePasswordAuthenticationToken(
+                        user, null,
+                        List.of(new SimpleGrantedAuthority("ROLE_" + user.getRole()))
+                );
+                SecurityContextHolder.getContext().setAuthentication(auth);
             }
         }
 
         filterChain.doFilter(request, response);
-    }
-
-    private boolean shouldUpdateActivity(User user) {
-        if (user.getLastActiveAt() == null) {
-            return true;
-        }
-        return user.getLastActiveAt()
-                .isBefore(Instant.now().minus(ACTIVITY_UPDATE_THRESHOLD_MINUTES, ChronoUnit.MINUTES));
     }
 }

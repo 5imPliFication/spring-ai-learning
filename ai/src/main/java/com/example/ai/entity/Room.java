@@ -23,6 +23,9 @@ public class Room {
     @Column(name = "password_hash")
     private String passwordHash;
 
+    @Column(name = "is_private", nullable = false)
+    private boolean isPrivate;
+
     @Column(name = "created_by")
     private String createdBy;
 
