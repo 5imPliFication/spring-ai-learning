@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import type { Room, User, Friend } from '../../types';
 import { friendApi } from '../../services/api';
 import { Avatar } from '../ui/Avatar';
+import { NotificationBell } from '../notifications/NotificationBell';
 import { Hash, Plus, LogOut, Search, X, Users, User as UserIcon, ShieldAlert, Lock, Compass, MessageSquare, EyeOff } from 'lucide-react';
 
 interface SidebarProps {
@@ -75,7 +76,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           onClick={onOpenProfile}
           className="flex items-center gap-3 text-left group hover:opacity-90 transition-opacity"
         >
-          <Avatar name={user.displayName} size="md" />
+          <Avatar name={user.displayName} src={user.avatarUrl} size="md" />
           <div className="flex flex-col">
             <span className="text-sm font-bold text-white tracking-tight group-hover:text-blue-400 transition-colors">
               {user.displayName}
@@ -119,6 +120,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <ShieldAlert className="w-3.5 h-3.5 text-emerald-400" />
           </button>
         )}
+
+        <NotificationBell onOpenFriends={onOpenFriends} onOpenRoom={onSelectRoom} />
       </div>
 
       {/* DEDICATED FRIENDS SIDEBAR CARD */}
@@ -152,7 +155,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   title={`Message ${f.friendDisplayName}`}
                   className="w-full flex items-center gap-2 p-2 rounded-xl bg-slate-900/80 hover:bg-slate-800 border border-slate-800/60 transition-colors disabled:opacity-60 disabled:cursor-wait text-left"
                 >
-                  <Avatar name={f.friendDisplayName} size="sm" />
+                  <Avatar name={f.friendDisplayName} src={f.friendAvatarUrl} size="sm" />
                   <span className="text-xs font-medium text-slate-200 truncate flex-1">{f.friendDisplayName}</span>
                   <MessageSquare className="w-3 h-3 text-blue-400 shrink-0" />
                 </button>

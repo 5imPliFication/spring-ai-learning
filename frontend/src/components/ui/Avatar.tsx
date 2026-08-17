@@ -2,6 +2,7 @@ import React from 'react';
 
 interface AvatarProps {
   name?: string;
+  src?: string | null;
   isAi?: boolean;
   size?: 'sm' | 'md' | 'lg';
 }
@@ -23,12 +24,14 @@ function getColorClass(name: string) {
   return colorPairs[index];
 }
 
-export const Avatar: React.FC<AvatarProps> = ({ name = '?', isAi = false, size = 'md' }) => {
+export const Avatar: React.FC<AvatarProps> = ({ name = '?', src, isAi = false, size = 'md' }) => {
   const sizeClasses = {
     sm: 'w-7 h-7 text-xs',
     md: 'w-9 h-9 text-sm',
     lg: 'w-11 h-11 text-base',
   };
+
+  const safeName = (name || '?').trim();
 
   if (isAi) {
     return (
@@ -40,7 +43,16 @@ export const Avatar: React.FC<AvatarProps> = ({ name = '?', isAi = false, size =
     );
   }
 
-  const safeName = (name || '?').trim();
+  if (src) {
+    return (
+      <img
+        src={src}
+        alt={`${safeName}'s avatar`}
+        className={`${sizeClasses[size]} rounded-full object-cover bg-slate-800`}
+      />
+    );
+  }
+
   const initial = safeName.charAt(0).toUpperCase() || '?';
   const gradient = getColorClass(safeName);
 

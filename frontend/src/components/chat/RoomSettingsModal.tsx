@@ -380,7 +380,7 @@ export const RoomSettingsModal: React.FC<RoomSettingsModalProps> = ({
                           className="flex items-center justify-between p-2.5 rounded-xl bg-slate-950/60 border border-slate-800/80"
                         >
                           <div className="flex items-center gap-2.5 min-w-0">
-                            <Avatar name={m.displayName} size="sm" />
+                            <Avatar name={m.displayName} src={m.avatarUrl} size="sm" />
                             <div className="min-w-0">
                               <div className="flex items-center gap-1.5">
                                 <span className="text-xs font-semibold text-white truncate">{m.displayName}</span>

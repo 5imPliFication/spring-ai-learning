@@ -9,6 +9,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -28,6 +29,12 @@ public class UserController {
     public ResponseEntity<UserProfileResponse> updateMyProfile(@AuthenticationPrincipal User user,
                                                                @Valid @RequestBody UpdateProfileRequest request) {
         return ResponseEntity.ok(userService.updateProfile(user, request));
+    }
+
+    @PostMapping("/me/avatar")
+    public ResponseEntity<UserProfileResponse> uploadMyAvatar(@AuthenticationPrincipal User user,
+                                                              @RequestParam("file") MultipartFile file) {
+        return ResponseEntity.ok(userService.uploadAvatar(user, file));
     }
 
     @DeleteMapping("/me")

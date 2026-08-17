@@ -29,6 +29,7 @@ public class FriendService {
     private final RoomRepository roomRepository;
     private final RoomMemberRepository roomMemberRepository;
     private final RoomMessageRepository roomMessageRepository;
+    private final NotificationService notificationService;
 
     public void sendFriendRequest(User user, String friendId) {
         if (user.getId().equals(friendId)) {
@@ -47,6 +48,15 @@ public class FriendService {
                 .status("PENDING")
                 .build();
         friendRepository.save(request);
+
+        notificationService.create(
+                friendId,
+                "FRIEND_REQUEST",
+                user.getDisplayName() + " sent you a friend request",
+                "Tap here to view and accept the request",
+                user.getId(),
+                null
+        );
     }
 
     public void acceptFriendRequest(User user, Long friendshipId) {
@@ -69,6 +79,15 @@ public class FriendService {
                     .build();
             friendRepository.save(reciprocal);
         }
+
+        notificationService.create(
+                friend.getUserId(),
+                "FRIEND_ACCEPTED",
+                user.getDisplayName() + " accepted your friend request",
+                "You are now friends — say hi!",
+                user.getId(),
+                null
+        );
     }
 
     public void declineFriendRequest(User user, Long friendshipId) {

@@ -77,6 +77,23 @@ export interface UpdateRoomRequest {
   password?: string;
 }
 
+export interface PresignedUploadRequest {
+  fileName: string;
+  contentType: string;
+  size: number;
+}
+
+export interface PresignedUploadResponse {
+  uploadUrl: string;
+  mediaUrl: string;
+  messageType: 'IMAGE' | 'AUDIO' | 'FILE';
+}
+
+export interface MessageMedia {
+  messageType: 'IMAGE' | 'AUDIO' | 'FILE';
+  mediaUrl: string;
+}
+
 export interface AdminDashboardStats {
   dailyMessages: number;
   weeklyMessages: number;
@@ -94,6 +111,18 @@ export interface UpdateProfileRequest {
   avatarUrl?: string;
   currentPassword?: string;
   newPassword?: string;
+}
+
+export interface AppNotification {
+  id: number;
+  type: string;
+  title: string;
+  body?: string;
+  senderId?: string;
+  senderName?: string;
+  roomId?: string;
+  read: boolean;
+  createdAt: string;
 }
 
 export interface AppError {

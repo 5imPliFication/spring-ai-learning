@@ -201,7 +201,7 @@ export const FriendsModal: React.FC<FriendsModalProps> = ({ isOpen, onClose, onS
                     className="flex items-center justify-between p-3 rounded-2xl bg-slate-950/60 border border-slate-800/80 hover:border-slate-700 transition-all"
                   >
                     <div className="flex items-center gap-3">
-                      <Avatar name={f.friendDisplayName} size="md" />
+                      <Avatar name={f.friendDisplayName} src={f.friendAvatarUrl} size="md" />
                       <div>
                         <h4 className="text-sm font-bold text-white leading-tight">{f.friendDisplayName}</h4>
                         <span className="text-xs text-slate-400 font-mono">@{f.friendUsername}</span>
@@ -266,7 +266,7 @@ export const FriendsModal: React.FC<FriendsModalProps> = ({ isOpen, onClose, onS
                   className="flex items-center justify-between p-3 rounded-2xl bg-slate-950/60 border border-slate-800/80"
                 >
                   <div className="flex items-center gap-3">
-                    <Avatar name={f.friendDisplayName} size="md" />
+                    <Avatar name={f.friendDisplayName} src={f.friendAvatarUrl} size="md" />
                     <div>
                       <h4 className="text-sm font-bold text-white leading-tight">{f.friendDisplayName}</h4>
                       <span className="text-xs text-slate-400 font-mono">@{f.friendUsername}</span>
@@ -339,7 +339,7 @@ export const FriendsModal: React.FC<FriendsModalProps> = ({ isOpen, onClose, onS
                       className="flex items-center justify-between p-3 rounded-2xl bg-slate-950/60 border border-slate-800/80"
                     >
                       <div className="flex items-center gap-3">
-                        <Avatar name={u.displayName} size="md" />
+                        <Avatar name={u.displayName} src={u.avatarUrl} size="md" />
                         <div>
                           <h4 className="text-sm font-bold text-white leading-tight">{u.displayName}</h4>
                           <span className="text-xs text-slate-400 font-mono">@{u.username}</span>

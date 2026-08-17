@@ -21,6 +21,11 @@ public record ChatMessage(
         return new ChatMessage(senderId, senderName, content, "TEXT", null, "CHAT", Instant.now(), replyToId, messageId);
     }
 
+    public static ChatMessage chatMedia(Long messageId, String senderId, String senderName, String content,
+                                        String messageType, String mediaUrl, Long replyToId) {
+        return new ChatMessage(senderId, senderName, content, messageType, mediaUrl, "CHAT", Instant.now(), replyToId, messageId);
+    }
+
     public static ChatMessage typing(String senderId, String senderName) {
         return new ChatMessage(senderId, senderName, null, null, null, "TYPING", Instant.now(), null, null);
     }

@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, useLocation } from 'react-router';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { NotificationProvider } from './context/NotificationContext';
 import { AuthModal } from './components/auth/AuthModal';
 import { ChatLayout } from './components/chat/ChatLayout';
 import { InviteJoin } from './components/chat/InviteJoin';
@@ -35,12 +36,14 @@ export const App: React.FC = () => {
     <ErrorBoundary>
       <BrowserRouter>
         <AuthProvider>
-          <Routes>
-            <Route path="/" element={<AppContent />} />
-            <Route path="/rooms/:roomId" element={<AppContent />} />
-            <Route path="/invite/:roomId" element={<AppContent />} />
-            <Route path="*" element={<AppContent />} />
-          </Routes>
+          <NotificationProvider>
+            <Routes>
+              <Route path="/" element={<AppContent />} />
+              <Route path="/rooms/:roomId" element={<AppContent />} />
+              <Route path="/invite/:roomId" element={<AppContent />} />
+              <Route path="*" element={<AppContent />} />
+            </Routes>
+          </NotificationProvider>
         </AuthProvider>
       </BrowserRouter>
     </ErrorBoundary>

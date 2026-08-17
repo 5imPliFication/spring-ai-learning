@@ -39,6 +39,8 @@ public class RoomService {
     private final RoomMessageRepository roomMessageRepository;
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final NotificationService notificationService;
+    private final MediaService mediaService;
 
     @Value("${app.frontend.base-url}")
     private String frontendBaseUrl;
@@ -127,7 +129,13 @@ public class RoomService {
             String replyToContent = null;
             if (reply != null) {
                 replyToSenderName = userNames.getOrDefault(reply.getSenderId(), "Unknown");
-                replyToContent = reply.getDeletedAt() != null ? null : reply.getContent();
+                if (reply.getDeletedAt() != null) {
+                    replyToContent = null;
+                } else if (reply.getContent() != null) {
+                    replyToContent = reply.getContent();
+                } else if (reply.getMediaUrl() != null) {
+                    replyToContent = "[" + mediaTypeLabel(reply.getMessageType()) + "]";
+                }
             }
 
             return new MessageResponse(
@@ -167,6 +175,20 @@ public class RoomService {
                     .role(isCreator ? "OWNER" : "MEMBER")
                     .build();
             roomMemberRepository.save(member);
+
+            if (room.getCreatedBy() != null && !room.getCreatedBy().equals(userId)) {
+                String joinerName = userRepository.findById(userId)
+                        .map(User::getDisplayName)
+                        .orElse("Someone");
+                notificationService.create(
+                        room.getCreatedBy(),
+                        "ROOM_JOINED",
+                        joinerName + " joined your room",
+                        room.getName(),
+                        userId,
+                        roomId
+                );
+            }
         }
     }
 
@@ -291,9 +313,24 @@ public class RoomService {
             return;
         }
 
+        String mediaUrl = msg.getMediaUrl();
         msg.setContent(null);
         msg.setDeletedAt(Instant.now());
         roomMessageRepository.save(msg);
+
+        if (mediaUrl != null) {
+            mediaService.deleteObject(mediaUrl);
+        }
+    }
+
+    private String mediaTypeLabel(String messageType) {
+        if (messageType == null) return "File";
+        return switch (messageType.toUpperCase()) {
+            case "IMAGE" -> "Image";
+            case "AUDIO" -> "Audio";
+            case "FILE" -> "File";
+            default -> "File";
+        };
     }
 
     public Map<String, String> getInviteLink(String roomId, User user) {

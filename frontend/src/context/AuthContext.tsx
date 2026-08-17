@@ -49,7 +49,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           });
       });
 
-      wsService.connect();
+wsService.connect(savedToken);
     } else {
       setIsLoading(false);
     }
@@ -68,7 +68,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.setItem('token', res.token);
     localStorage.setItem('user', JSON.stringify(authUser));
 
-    wsService.connect();
+    wsService.connect(res.token);
   };
 
   const login = async (username: string, password: string) => {

@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import type { User } from '../../types';
 import { userApi } from '../../services/api';
-import { X, User as UserIcon, Lock, Trash2, Check, Loader2 } from 'lucide-react';
+import { X, User as UserIcon, Lock, Trash2, Check, Loader2, Camera, Upload } from 'lucide-react';
 import { Avatar } from '../ui/Avatar';
 
 interface ProfileModalProps {
@@ -12,6 +12,11 @@ interface ProfileModalProps {
   onLogout: () => void;
 }
 
+const MAX_AVATAR_SIZE = 5 * 1024 * 1024;
+const MIN_AVATAR_DIM = 64;
+const MAX_AVATAR_DIM = 2048;
+const AVATAR_ACCEPT = 'image/jpeg,image/png,image/gif';
+
 export const ProfileModal: React.FC<ProfileModalProps> = ({
   user,
   isOpen,
@@ -20,13 +25,18 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   onLogout,
 }) => {
   const [displayName, setDisplayName] = useState(user.displayName);
-  const [avatarUrl, setAvatarUrl] = useState(user.avatarUrl || '');
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  // Avatar upload state
+  const [pendingAvatar, setPendingAvatar] = useState<File | null>(null);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
 
   if (!isOpen) return null;
 
@@ -39,7 +49,6 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
     try {
       const updated = await userApi.updateProfile({
         displayName: displayName.trim(),
-        avatarUrl: avatarUrl.trim(),
         currentPassword: currentPassword ? currentPassword : undefined,
         newPassword: newPassword ? newPassword : undefined,
       });
@@ -55,6 +64,69 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
     }
   };
 
+  const handleAvatarSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+
+    if (!AVATAR_ACCEPT.split(',').includes(file.type)) {
+      setErrorMsg('Please choose a JPEG, PNG or GIF image.');
+      return;
+    }
+    if (file.size > MAX_AVATAR_SIZE) {
+      setErrorMsg('Avatar must be smaller than 5MB.');
+      return;
+    }
+
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      if (img.naturalWidth < MIN_AVATAR_DIM || img.naturalHeight < MIN_AVATAR_DIM) {
+        URL.revokeObjectURL(url);
+        setErrorMsg(`Image must be at least ${MIN_AVATAR_DIM}x${MIN_AVATAR_DIM} pixels.`);
+        return;
+      }
+      if (img.naturalWidth > MAX_AVATAR_DIM || img.naturalHeight > MAX_AVATAR_DIM) {
+        URL.revokeObjectURL(url);
+        setErrorMsg(`Image must be at most ${MAX_AVATAR_DIM}x${MAX_AVATAR_DIM} pixels.`);
+        return;
+      }
+      if (avatarPreview) URL.revokeObjectURL(avatarPreview);
+      setErrorMsg(null);
+      setPendingAvatar(file);
+      setAvatarPreview(url);
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      setErrorMsg('Could not read that image file. Use a valid JPEG, PNG or GIF.');
+    };
+    img.src = url;
+  };
+
+  const cancelAvatar = () => {
+    if (avatarPreview) URL.revokeObjectURL(avatarPreview);
+    setPendingAvatar(null);
+    setAvatarPreview(null);
+    setErrorMsg(null);
+  };
+
+  const handleUploadAvatar = async () => {
+    if (!pendingAvatar) return;
+    setErrorMsg(null);
+    setSuccessMsg(null);
+    setIsUploadingAvatar(true);
+    try {
+      const updated = await userApi.uploadAvatar(pendingAvatar);
+      onProfileUpdated(updated);
+      setSuccessMsg('Profile picture updated');
+      cancelAvatar();
+    } catch (err: any) {
+      setErrorMsg(err.response?.data?.message || 'Failed to upload avatar');
+    } finally {
+      setIsUploadingAvatar(false);
+    }
+  };
+
   const handleDeleteAccount = async () => {
     try {
       await userApi.deleteAccount();
@@ -63,6 +135,8 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
       setErrorMsg(err.response?.data?.message || 'Failed to delete account');
     }
   };
+
+  const currentAvatar = avatarPreview ?? user.avatarUrl ?? '';
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm">
@@ -75,7 +149,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
         </button>
 
         <div className="flex items-center gap-4 mb-6">
-          <Avatar name={displayName} size="lg" />
+          <Avatar name={displayName} src={currentAvatar} size="lg" />
           <div>
             <h2 className="text-xl font-bold text-white tracking-tight">{user.displayName}</h2>
             <span className="text-xs text-slate-400 font-mono">@{user.username}</span>
@@ -118,15 +192,55 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
 
           <div>
             <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">
-              Avatar Image URL
+              Profile Picture
             </label>
-            <input
-              type="text"
-              value={avatarUrl}
-              onChange={(e) => setAvatarUrl(e.target.value)}
-              placeholder="https://example.com/avatar.png"
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
-            />
+            <div className="flex items-center gap-4">
+              <Avatar name={displayName} src={currentAvatar} size="lg" />
+              <input
+                ref={avatarInputRef}
+                type="file"
+                accept={AVATAR_ACCEPT}
+                onChange={handleAvatarSelect}
+                className="hidden"
+              />
+              {pendingAvatar ? (
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleUploadAvatar}
+                    disabled={isUploadingAvatar}
+                    className="px-3 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold rounded-xl flex items-center gap-1.5 transition-colors disabled:opacity-50"
+                  >
+                    {isUploadingAvatar ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Upload className="w-3.5 h-3.5" />
+                    )}
+                    <span>{isUploadingAvatar ? 'Uploading...' : 'Upload'}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={cancelAvatar}
+                    disabled={isUploadingAvatar}
+                    className="px-3 py-2 text-slate-400 hover:text-white text-xs font-medium transition-colors disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => avatarInputRef.current?.click()}
+                  className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-xl flex items-center gap-1.5 transition-colors"
+                >
+                  <Camera className="w-3.5 h-3.5" />
+                  <span>Change Photo</span>
+                </button>
+              )}
+            </div>
+            <p className="text-[10px] text-slate-500 mt-1.5">
+              JPEG, PNG or GIF. Between {MIN_AVATAR_DIM}x{MIN_AVATAR_DIM} and {MAX_AVATAR_DIM}x{MAX_AVATAR_DIM} pixels, max 5MB.
+            </p>
           </div>
 
           <hr className="border-slate-800 my-4" />

@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router';
 import { useAuth } from '../../context/AuthContext';
-import type { Room, Message, ChatMessagePayload, User, AppError } from '../../types';
+import { useNotifications } from '../../context/NotificationContext';
+import type { Room, Message, ChatMessagePayload, User, AppError, MessageMedia } from '../../types';
 import { roomApi, setGlobalErrorHandler } from '../../services/api';
 import { wsService } from '../../services/websocket';
 import { Sidebar } from './Sidebar';
@@ -18,8 +19,21 @@ import { AdminDashboard } from '../admin/AdminDashboard';
 import { ErrorPage } from '../common/ErrorPage';
 import { MessageSquare, Sparkles } from 'lucide-react';
 
+const mediaLabel = (m: Message | undefined): string | undefined => {
+  if (!m?.mediaUrl) return undefined;
+  switch (m.messageType) {
+    case 'IMAGE':
+      return '[Image]';
+    case 'AUDIO':
+      return '[Audio]';
+    default:
+      return '[File]';
+  }
+};
+
 export const ChatLayout: React.FC = () => {
   const { user, logout } = useAuth();
+  const { setActiveRoomId: setNotifActiveRoomId } = useNotifications();
   const { roomId } = useParams();
   const navigate = useNavigate();
   const [currentUser, setCurrentUser] = useState<User | null>(user);
@@ -55,6 +69,10 @@ export const ChatLayout: React.FC = () => {
   }, []);
 
   const activeRoom = joinedRooms.find((r) => r.id === activeRoomId) || null;
+
+  useEffect(() => {
+    setNotifActiveRoomId(activeRoomId);
+  }, [activeRoomId, setNotifActiveRoomId]);
 
   const fetchJoinedRooms = useCallback(async () => {
     const data = await roomApi.getJoinedRooms();
@@ -118,7 +136,7 @@ export const ChatLayout: React.FC = () => {
           createdAt: payload.timestamp || new Date().toISOString(),
           replyToId: payload.replyToId ?? undefined,
           replyToSenderName: replyMsg?.senderName,
-          replyToContent: replyMsg?.deleted ? undefined : replyMsg?.content,
+          replyToContent: replyMsg?.deleted ? undefined : (replyMsg?.content || mediaLabel(replyMsg)),
           deleted: false,
         };
         return [...prev, newMsg];
@@ -181,14 +199,15 @@ export const ChatLayout: React.FC = () => {
     navigate(`/rooms/${newRoom.id}`);
   };
 
-  const handleSendMessage = (content: string, replyToId?: number) => {
+  const handleSendMessage = (content: string, replyToId?: number, media?: MessageMedia) => {
     if (!activeRoomId || !currentUser) return;
 
     const payload: ChatMessagePayload = {
       senderId: currentUser.id,
       senderName: currentUser.displayName,
-      content,
-      messageType: 'TEXT',
+      content: media ? (content || null) : content,
+      messageType: media?.messageType ?? 'TEXT',
+      mediaUrl: media?.mediaUrl ?? null,
       type: 'CHAT',
       replyToId,
     };

@@ -9,6 +9,9 @@ import type {
   AdminDashboardStats,
   UpdateProfileRequest,
   UpdateRoomRequest,
+  AppNotification,
+  PresignedUploadRequest,
+  PresignedUploadResponse,
 } from '../types';
 
 const API_BASE_URL = '/api/v1';
@@ -84,6 +87,15 @@ export const userApi = {
 
   updateProfile: async (data: UpdateProfileRequest): Promise<User> => {
     const res = await apiClient.put<User>('/users/me', data);
+    return res.data;
+  },
+
+  uploadAvatar: async (file: File): Promise<User> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await apiClient.post<User>('/users/me/avatar', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
     return res.data;
   },
 
@@ -189,6 +201,44 @@ export const roomApi = {
 
   deleteMessage: async (roomId: string, messageId: number): Promise<void> => {
     await apiClient.delete(`/rooms/${roomId}/messages/${messageId}`);
+  },
+};
+
+export const mediaApi = {
+  requestPresignedUpload: async (data: PresignedUploadRequest): Promise<PresignedUploadResponse> => {
+    const res = await apiClient.post<PresignedUploadResponse>('/uploads/presign', data);
+    return res.data;
+  },
+
+  uploadToR2: async (uploadUrl: string, file: File, onProgress?: (percent: number) => void): Promise<void> => {
+    await axios.put(uploadUrl, file, {
+      headers: { 'Content-Type': file.type || 'application/octet-stream' },
+      onUploadProgress: (e: any) => {
+        if (onProgress && e.total) {
+          onProgress(Math.round((e.loaded / e.total) * 100));
+        }
+      },
+    });
+  },
+};
+
+export const notificationApi = {
+  getNotifications: async (limit = 50): Promise<AppNotification[]> => {
+    const res = await apiClient.get<AppNotification[]>(`/notifications?limit=${limit}`);
+    return res.data;
+  },
+
+  getUnreadCount: async (): Promise<number> => {
+    const res = await apiClient.get<{ count: number }>('/notifications/unread-count');
+    return res.data.count;
+  },
+
+  markRead: async (id: number): Promise<void> => {
+    await apiClient.post(`/notifications/${id}/read`);
+  },
+
+  markAllRead: async (): Promise<void> => {
+    await apiClient.post('/notifications/read-all');
   },
 };
 

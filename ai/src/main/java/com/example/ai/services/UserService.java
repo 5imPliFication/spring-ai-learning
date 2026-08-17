@@ -7,6 +7,7 @@ import com.example.ai.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.time.Instant;
 import java.util.List;
@@ -17,6 +18,7 @@ public class UserService {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final MediaService mediaService;
 
     public UserProfileResponse getProfile(User principal) {
         User user = userRepository.findById(principal.getId())
@@ -50,6 +52,23 @@ public class UserService {
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
         user.setDeletedAt(Instant.now());
         userRepository.save(user);
+    }
+
+    public UserProfileResponse uploadAvatar(User principal, MultipartFile file) {
+        User user = userRepository.findById(principal.getId())
+                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+
+        String newAvatarUrl = mediaService.uploadAvatar(file, user.getId());
+
+        String oldAvatarUrl = user.getAvatarUrl();
+        user.setAvatarUrl(newAvatarUrl);
+        userRepository.save(user);
+
+        if (oldAvatarUrl != null && !oldAvatarUrl.isBlank()) {
+            mediaService.deleteObject(oldAvatarUrl);
+        }
+
+        return toProfileResponse(user);
     }
 
     public List<UserProfileResponse> searchUsers(String query) {

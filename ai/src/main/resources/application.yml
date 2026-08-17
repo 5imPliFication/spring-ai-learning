@@ -13,6 +13,11 @@ spring:
     username: ${DATABASE_USERNAME}
     password: ${DATABASE_PASSWORD}
 
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 6MB
+
   ai:
     deepseek:
       api-key: ${AI-API-KEY}
@@ -27,6 +32,16 @@ app:
 
   frontend:
     base-url: http://localhost:5173
+
+  r2:
+    endpoint: ${R2_ENDPOINT}
+    region: auto
+    access-key: ${R2_ACCESS_KEY_ID}
+    secret-key: ${R2_SECRET_ACCESS_KEY}
+    bucket: ${R2_BUCKET_NAME}
+    public-base-url: ${R2_PUBLIC_BASE_URL}
+    upload-expiry-minutes: 15
+    max-upload-size-bytes: 26214400  # 25 MB
 
   ai:
     name: Azura
