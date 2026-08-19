@@ -53,16 +53,26 @@ export const RoomSettingsModal: React.FC<RoomSettingsModalProps> = ({
       setErrorMsg(null);
       setSuccessMsg(null);
       setShowDeleteConfirm(false);
-      setSection('general');
+      const isManager = room.createdBy === currentUser.id || currentUser.role === 'ADMIN';
+      setSection(isManager ? 'general' : 'members');
       loadMembers();
     }
-  }, [isOpen, room, loadMembers]);
+  }, [isOpen, room, loadMembers, currentUser.id, currentUser.role]);
 
   if (!isOpen || !room) return null;
 
   const isOwner = room.createdBy === currentUser.id;
   const isAdmin = currentUser.role === 'ADMIN';
   const canManage = isOwner || isAdmin;
+
+  const sections: { id: 'general' | 'security' | 'members'; label: string; icon: React.ReactNode }[] = [];
+  if (canManage) {
+    sections.push(
+      { id: 'general', label: 'General', icon: <Pencil className="w-3.5 h-3.5" /> },
+      { id: 'security', label: 'Security', icon: <Lock className="w-3.5 h-3.5" /> }
+    );
+  }
+  sections.push({ id: 'members', label: `Members (${members.length})`, icon: <Users className="w-3.5 h-3.5" /> });
 
   const handleRename = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -152,12 +162,6 @@ export const RoomSettingsModal: React.FC<RoomSettingsModalProps> = ({
     }
   };
 
-  const sections: { id: 'general' | 'security' | 'members'; label: string; icon: React.ReactNode }[] = [
-    { id: 'general', label: 'General', icon: <Pencil className="w-3.5 h-3.5" /> },
-    { id: 'security', label: 'Security', icon: <Lock className="w-3.5 h-3.5" /> },
-    { id: 'members', label: `Members (${members.length})`, icon: <Users className="w-3.5 h-3.5" /> },
-  ];
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm">
       <div className="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl relative flex flex-col max-h-[85vh]">
@@ -174,14 +178,28 @@ export const RoomSettingsModal: React.FC<RoomSettingsModalProps> = ({
         </h2>
         <p className="text-slate-400 text-xs mb-4">Manage <span className="text-white font-semibold">{room.name}</span></p>
 
-        {!canManage && (
-          <div className="py-6 text-center text-slate-500 text-xs">
-            Only the Room Owner or System Admins can manage room settings.
+        {room.isPrivate && (
+          <div className="flex items-center gap-2 p-3 mb-4 rounded-2xl bg-violet-500/10 border border-violet-500/20">
+            <div className="flex-1">
+              <h4 className="text-xs font-bold text-violet-300 flex items-center gap-1.5">
+                <Link2 className="w-3.5 h-3.5" />
+                Private Room Invite Link
+              </h4>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                Anyone with this link can join this room.
+              </p>
+            </div>
+            <button
+              onClick={handleCopyInvite}
+              className="px-3 py-2 bg-violet-600 hover:bg-violet-500 text-white text-xs font-semibold rounded-xl flex items-center gap-1.5 transition-colors"
+            >
+              <Copy className="w-3.5 h-3.5" />
+              <span>Copy Link</span>
+            </button>
           </div>
         )}
 
-        {canManage && (
-          <>
+        <>
             <div className="flex gap-1.5 mb-4 p-1 bg-slate-950/60 border border-slate-800 rounded-xl">
               {sections.map((s) => (
                 <button
@@ -235,27 +253,6 @@ export const RoomSettingsModal: React.FC<RoomSettingsModalProps> = ({
                       </button>
                     </form>
                   </div>
-
-                  {room.isPrivate && (
-                    <div className="flex items-center gap-2 p-3 rounded-2xl bg-violet-500/10 border border-violet-500/20">
-                      <div className="flex-1">
-                        <h4 className="text-xs font-bold text-violet-300 flex items-center gap-1.5">
-                          <Link2 className="w-3.5 h-3.5" />
-                          Private Room Invite Link
-                        </h4>
-                        <p className="text-[11px] text-slate-400 mt-0.5">
-                          Anyone with this link can join this room.
-                        </p>
-                      </div>
-                      <button
-                        onClick={handleCopyInvite}
-                        className="px-3 py-2 bg-violet-600 hover:bg-violet-500 text-white text-xs font-semibold rounded-xl flex items-center gap-1.5 transition-colors"
-                      >
-                        <Copy className="w-3.5 h-3.5" />
-                        <span>Copy Link</span>
-                      </button>
-                    </div>
-                  )}
 
                   <div className="bg-red-500/5 border border-red-500/10 rounded-2xl p-4">
                     <div className="flex items-center gap-2 mb-2">
@@ -373,7 +370,7 @@ export const RoomSettingsModal: React.FC<RoomSettingsModalProps> = ({
                     members.map((m) => {
                       const isOwnerRow = m.role === 'OWNER';
                       const isSelf = m.userId === currentUser.id;
-                      const canKick = !isSelf && !isOwnerRow;
+                      const canKick = canManage && !isSelf && !isOwnerRow;
                       return (
                         <div
                           key={m.userId}
@@ -415,7 +412,6 @@ export const RoomSettingsModal: React.FC<RoomSettingsModalProps> = ({
               )}
             </div>
           </>
-        )}
       </div>
     </div>
   );

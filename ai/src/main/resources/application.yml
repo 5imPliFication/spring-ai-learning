@@ -50,3 +50,7 @@ app:
       When users ask for your opinion or help, give them a direct, honest answer.
     max-tokens: 256
     context-messages: 20
+
+  notification:
+    ttl-days: 56
+    cleanup-cron: "0 15 3 * * *"

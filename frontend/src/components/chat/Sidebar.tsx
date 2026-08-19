@@ -3,7 +3,7 @@ import type { Room, User, Friend } from '../../types';
 import { friendApi } from '../../services/api';
 import { Avatar } from '../ui/Avatar';
 import { NotificationBell } from '../notifications/NotificationBell';
-import { Hash, Plus, LogOut, Search, X, Users, User as UserIcon, ShieldAlert, Lock, Compass, MessageSquare, EyeOff } from 'lucide-react';
+import { Hash, Plus, LogOut, Search, X, Users, ShieldAlert, Lock, Compass, MessageSquare, EyeOff } from 'lucide-react';
 
 interface SidebarProps {
   user: User;
@@ -102,13 +102,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
         >
           <Users className="w-3.5 h-3.5 text-blue-400" />
           <span>Friends</span>
-        </button>
-
-        <button
-          onClick={onOpenProfile}
-          className="py-2 px-3 bg-slate-950/60 hover:bg-slate-800 border border-slate-800/80 rounded-xl text-slate-300 hover:text-white text-xs font-semibold flex items-center justify-center gap-1.5 transition-all"
-        >
-          <UserIcon className="w-3.5 h-3.5 text-slate-400" />
         </button>
 
         {user?.role?.toUpperCase() === 'ADMIN' && onOpenAdmin && (

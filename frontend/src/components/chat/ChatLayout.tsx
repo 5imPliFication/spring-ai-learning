@@ -43,6 +43,7 @@ export const ChatLayout: React.FC = () => {
   const [isAiTyping, setIsAiTyping] = useState(false);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const joiningRoomRef = useRef<string | null>(null);
+  const subscribedRoomRef = useRef<string | null>(null);
 
   // Modals & Views State
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -156,7 +157,11 @@ export const ChatLayout: React.FC = () => {
       setMessages(history);
       setReplyingTo(null);
 
+      if (subscribedRoomRef.current && subscribedRoomRef.current !== roomId) {
+        wsService.unsubscribeRoom(subscribedRoomRef.current);
+      }
       wsService.subscribeToRoom(roomId, handleIncomingWebSocketMessage);
+      subscribedRoomRef.current = roomId;
     } catch (err: any) {
       console.error('Error joining room or fetching messages:', err);
       throw err;
@@ -192,6 +197,15 @@ export const ChatLayout: React.FC = () => {
         if (joiningRoomRef.current === roomId) joiningRoomRef.current = null;
       });
   }, [roomId, executeJoinRoom]);
+
+  useEffect(() => {
+    return () => {
+      if (subscribedRoomRef.current) {
+        wsService.unsubscribeRoom(subscribedRoomRef.current);
+        subscribedRoomRef.current = null;
+      }
+    };
+  }, []);
 
   const handleCreateRoom = async (name: string, password?: string, isPrivate?: boolean) => {
     const newRoom = await roomApi.createRoom(name, password, isPrivate);

@@ -5,11 +5,15 @@ import com.example.ai.entity.Notification;
 import com.example.ai.repository.NotificationRepository;
 import com.example.ai.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 
 @Service
@@ -19,6 +23,9 @@ public class NotificationService {
     private final NotificationRepository notificationRepository;
     private final UserRepository userRepository;
     private final SimpMessagingTemplate messagingTemplate;
+
+    @Value("${app.notification.ttl-days:56}")
+    private long ttlDays;
 
     public void create(String recipientId, String type, String title, String body, String senderId, String roomId) {
         if (recipientId == null || recipientId.isBlank()) return;
@@ -68,6 +75,13 @@ public class NotificationService {
                         notificationRepository.save(n);
                     }
                 });
+    }
+
+    @Scheduled(cron = "${app.notification.cleanup-cron:0 15 3 * * *}")
+    @Transactional
+    public void cleanupOlderThan() {
+        Instant cutoff = Instant.now().minus(ttlDays, ChronoUnit.DAYS);
+        notificationRepository.deleteOlderThan(cutoff);
     }
 
     private NotificationDto toDto(Notification n) {

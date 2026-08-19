@@ -18,6 +18,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     private final JwtUtil jwtUtil;
     private final RoomRepository roomRepository;
     private final RoomMemberRepository roomMemberRepository;
+    private final RoomPresenceTracker roomPresenceTracker;
 
     @Override
     public void configureMessageBroker(MessageBrokerRegistry config) {
@@ -34,6 +35,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     @Override
     public void configureClientInboundChannel(ChannelRegistration registration) {
-        registration.interceptors(new JwtWebSocketAuthInterceptor(jwtUtil, roomRepository, roomMemberRepository));
+        registration.interceptors(new JwtWebSocketAuthInterceptor(
+                jwtUtil, roomRepository, roomMemberRepository, roomPresenceTracker));
     }
 }

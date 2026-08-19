@@ -155,7 +155,7 @@ public class FriendService {
         }
 
         // Create new DM room
-        String roomName = "DM: " + user.getDisplayName() + " & " + friend.getDisplayName();
+        String roomName = friend.getDisplayName();
         Room dmRoom = Room.builder()
                 .id(UUID.randomUUID().toString())
                 .name(roomName)

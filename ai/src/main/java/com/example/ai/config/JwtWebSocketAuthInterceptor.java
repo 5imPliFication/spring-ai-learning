@@ -27,6 +27,7 @@ public class JwtWebSocketAuthInterceptor implements ChannelInterceptor {
     private final JwtUtil jwtUtil;
     private final RoomRepository roomRepository;
     private final RoomMemberRepository roomMemberRepository;
+    private final RoomPresenceTracker roomPresenceTracker;
 
     @Override
     public Message<?> preSend(Message<?> message, MessageChannel channel) {
@@ -38,7 +39,9 @@ public class JwtWebSocketAuthInterceptor implements ChannelInterceptor {
         switch (accessor.getCommand()) {
             case CONNECT -> authenticate(accessor);
             case SUBSCRIBE -> authorizeSubscription(accessor);
+            case UNSUBSCRIBE -> trackUnsubscribe(accessor);
             case SEND -> authorizeSend(accessor);
+            case DISCONNECT -> roomPresenceTracker.clearSession(accessor.getSessionId());
             default -> { }
         }
         return message;
@@ -83,7 +86,20 @@ public class JwtWebSocketAuthInterceptor implements ChannelInterceptor {
             if (!canAccessRoom(user, roomId)) {
                 throw new MessageDeliveryException("Not a member of this room");
             }
+            roomPresenceTracker.markActive(accessor.getSessionId(), user.getId(), roomId);
         }
+    }
+
+    private void trackUnsubscribe(StompHeaderAccessor accessor) {
+        String destination = accessor.getDestination();
+        if (destination == null) {
+            destination = accessor.getFirstNativeHeader("destination");
+        }
+        if (destination == null || !destination.startsWith(ROOM_TOPIC_PREFIX)) {
+            return;
+        }
+        String roomId = destination.substring(ROOM_TOPIC_PREFIX.length()).split("/")[0];
+        roomPresenceTracker.markInactive(accessor.getSessionId(), roomId);
     }
 
     private void authorizeSend(StompHeaderAccessor accessor) {

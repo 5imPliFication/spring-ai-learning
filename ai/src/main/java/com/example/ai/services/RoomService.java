@@ -339,9 +339,10 @@ public class RoomService {
 
         boolean isOwner = room.getCreatedBy() != null && room.getCreatedBy().equals(user.getId());
         boolean isAdmin = "ADMIN".equalsIgnoreCase(user.getRole());
+        boolean isMember = roomMemberRepository.existsByRoomIdAndUserId(roomId, user.getId());
 
-        if (!isOwner && !isAdmin) {
-            throw new IllegalArgumentException("Only the room owner can generate an invite link");
+        if (!isOwner && !isAdmin && !isMember) {
+            throw new IllegalArgumentException("Only room members can generate an invite link");
         }
 
         return Map.of("url", frontendBaseUrl + "/invite/" + room.getId());

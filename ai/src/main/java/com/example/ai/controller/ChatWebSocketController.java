@@ -1,5 +1,6 @@
 package com.example.ai.controller;
 
+import com.example.ai.config.RoomPresenceTracker;
 import com.example.ai.dto.ChatMessage;
 import com.example.ai.entity.Room;
 import com.example.ai.entity.RoomMember;
@@ -35,6 +36,7 @@ public class ChatWebSocketController {
     private final UserRepository userRepository;
     private final AzuraService azuraService;
     private final NotificationService notificationService;
+    private final RoomPresenceTracker roomPresenceTracker;
 
     @Value("${app.ai.name}")
     private String aiName;
@@ -78,14 +80,18 @@ public class ChatWebSocketController {
                     .map(RoomMember::getUserId)
                     .filter(recipientId -> !recipientId.equals(senderId))
                     .findFirst()
-                    .ifPresent(recipientId -> notificationService.create(
-                            recipientId,
-                            "DM_MESSAGE",
-                            senderName,
-                            message.content() != null ? message.content() : "New direct message",
-                            senderId,
-                            roomId
-                    ));
+                    .ifPresent(recipientId -> {
+                        if (!roomPresenceTracker.isViewing(recipientId, roomId)) {
+                            notificationService.create(
+                                    recipientId,
+                                    "DM_MESSAGE",
+                                    senderName,
+                                    message.content() != null ? message.content() : "New direct message",
+                                    senderId,
+                                    roomId
+                            );
+                        }
+                    });
         }
 
         if (message.content() != null && message.content().toLowerCase().contains("@ai")) {
@@ -109,7 +115,8 @@ public class ChatWebSocketController {
                     messagingTemplate.convertAndSend("/topic/room/" + roomId,
                             ChatMessage.idle("ai-bot", aiName));
 
-                    if (requesterId != null && !requesterId.isBlank()) {
+                    if (requesterId != null && !requesterId.isBlank()
+                            && !roomPresenceTracker.isViewing(requesterId, roomId)) {
                         String snippet = responseText.length() > 120
                                 ? responseText.substring(0, 120) + "…"
                                 : responseText;
