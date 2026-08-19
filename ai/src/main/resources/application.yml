@@ -3,14 +3,54 @@ server:
 
 spring:
   application:
-    name: Spring AI
+    name: Spring AI Chat
+  jpa:
+    hibernate:
+      ddl-auto: validate
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/spring_ai
+    username: ${DATABASE_USERNAME}
+    password: ${DATABASE_PASSWORD}
+
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 6MB
 
   ai:
     deepseek:
       api-key: ${AI-API-KEY}
-      base-url: https://api.deepseek.com
+      base-url: https://api.deepseek.com/v1
       chat:
-        model: deepseek-chat
+        model: deepseek-v4-flash
 
+app:
+  jwt:
+    secret: ${JWT-SECRET}
+    expiration-ms: 604800000  # 1 week
 
+  frontend:
+    base-url: http://localhost:5173
 
+  r2:
+    endpoint: ${R2_ENDPOINT}
+    region: auto
+    access-key: ${R2_ACCESS_KEY_ID}
+    secret-key: ${R2_SECRET_ACCESS_KEY}
+    bucket: ${R2_BUCKET_NAME}
+    public-base-url: ${R2_PUBLIC_BASE_URL}
+    upload-expiry-minutes: 15
+    max-upload-size-bytes: 26214400  # 25 MB
+
+  ai:
+    name: Azura
+    system-prompt: >
+      You are a helpful and friendly AI assistant participating in a group chat.
+      When users ask for your opinion or help, give them a direct, honest answer.
+    max-tokens: 256
+    context-messages: 20
+
+  notification:
+    ttl-days: 56
+    cleanup-cron: "0 15 3 * * *"
