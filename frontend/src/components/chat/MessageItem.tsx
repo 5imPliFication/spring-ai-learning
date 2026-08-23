@@ -9,9 +9,35 @@ interface MessageItemProps {
   isFirstInGroup: boolean;
   isLastInGroup: boolean;
   canDelete?: boolean;
+  memberUsernames?: string[];
+  mentionsMe?: boolean;
   onReply?: (message: Message) => void;
   onDelete?: (messageId: number) => void;
 }
+
+const escapeRegex = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const MentionText: React.FC<{ content: string; usernames: string[] }> = ({ content, usernames }) => {
+  if (!content || usernames.length === 0) return <>{content}</>;
+  const regex = new RegExp(`(@(?:${usernames.map(escapeRegex).join('|')}))(?![a-zA-Z0-9_.-])`, 'gi');
+  const parts = content.split(regex);
+  return (
+    <>
+      {parts.map((part, i) =>
+        i % 2 === 1 ? (
+          <span
+            key={i}
+            className="bg-blue-500/20 text-blue-200 rounded px-1 py-px font-medium"
+          >
+            {part}
+          </span>
+        ) : (
+          <React.Fragment key={i}>{part}</React.Fragment>
+        )
+      )}
+    </>
+  );
+};
 
 const QuoteBlock: React.FC<{ message: Message }> = ({ message }) => {
   if (!message.replyToId) return null;
@@ -103,6 +129,8 @@ export const MessageItem: React.FC<MessageItemProps> = ({
   isFirstInGroup,
   isLastInGroup,
   canDelete = false,
+  memberUsernames = [],
+  mentionsMe = false,
   onReply,
   onDelete,
 }) => {
@@ -179,10 +207,16 @@ export const MessageItem: React.FC<MessageItemProps> = ({
       <div className={`flex flex-col items-end ${margin} group relative`}>
         {actions}
         <QuoteBlock message={message} />
-        <div className="max-w-[75%] md:max-w-[65%] bg-blue-600 text-white rounded-2xl rounded-tr-xs px-4 py-2.5 shadow-md text-sm leading-relaxed">
+        <div
+          className={`max-w-[75%] md:max-w-[65%] bg-blue-600 text-white rounded-2xl rounded-tr-xs px-4 py-2.5 shadow-md text-sm leading-relaxed ${
+            mentionsMe ? 'ring-2 ring-amber-400/70' : ''
+          }`}
+        >
           {message.mediaUrl && <MediaContent message={message} />}
           {message.content && (
-            <div className="word-break whitespace-pre-wrap mt-1.5">{message.content}</div>
+            <div className="word-break whitespace-pre-wrap mt-1.5">
+              <MentionText content={message.content} usernames={memberUsernames} />
+            </div>
           )}
         </div>
         {showTime && (
@@ -213,13 +247,15 @@ export const MessageItem: React.FC<MessageItemProps> = ({
           )}
           <QuoteBlock message={message} />
           <div
-            className={`bg-slate-900 border border-emerald-500/20 text-slate-100 rounded-2xl rounded-tl-xs px-4 py-3 shadow-lg text-sm leading-relaxed ${
-              !isFirstInGroup ? 'rounded-tl-lg' : ''
-            }`}
+            className={`bg-slate-900 border text-slate-100 rounded-2xl rounded-tl-xs px-4 py-3 shadow-lg text-sm leading-relaxed ${
+              mentionsMe ? 'border-amber-400 ring-1 ring-amber-400/60' : 'border-emerald-500/20'
+            } ${!isFirstInGroup ? 'rounded-tl-lg' : ''}`}
           >
             {message.mediaUrl && <MediaContent message={message} />}
             {message.content && (
-              <div className="whitespace-pre-wrap mt-1.5">{message.content}</div>
+              <div className="whitespace-pre-wrap mt-1.5">
+                <MentionText content={message.content} usernames={memberUsernames} />
+              </div>
             )}
           </div>
           {showTime && (
@@ -241,10 +277,16 @@ export const MessageItem: React.FC<MessageItemProps> = ({
           <span className="text-xs font-medium text-slate-400 mb-1 ml-1">{message.senderName}</span>
         )}
         <QuoteBlock message={message} />
-        <div className="bg-slate-800/90 text-slate-100 border border-slate-700/50 rounded-2xl rounded-tl-xs px-4 py-2.5 shadow-md text-sm leading-relaxed">
+        <div
+          className={`bg-slate-800/90 text-slate-100 border border-slate-700/50 rounded-2xl rounded-tl-xs px-4 py-2.5 shadow-md text-sm leading-relaxed ${
+            mentionsMe ? 'ring-2 ring-amber-400/70' : ''
+          }`}
+        >
           {message.mediaUrl && <MediaContent message={message} />}
           {message.content && (
-            <div className="word-break whitespace-pre-wrap mt-1.5">{message.content}</div>
+            <div className="word-break whitespace-pre-wrap mt-1.5">
+              <MentionText content={message.content} usernames={memberUsernames} />
+            </div>
           )}
         </div>
         {showTime && (

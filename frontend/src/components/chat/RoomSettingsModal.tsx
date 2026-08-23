@@ -1,8 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import type { Room, User, RoomMember } from '../../types';
+import type { Room, User, RoomMember, NotificationMode } from '../../types';
 import { roomApi } from '../../services/api';
 import { Avatar } from '../ui/Avatar';
-import { X, Trash2, Settings, UserMinus, AlertTriangle, Pencil, Lock, Users, KeyRound, Unlock, Check, Loader2, Copy, Link2 } from 'lucide-react';
+import {
+  X, Trash2, Settings, UserMinus, AlertTriangle, Pencil, Lock, Users, KeyRound, Unlock,
+  Check, Loader2, Copy, Link2, BellRing, AtSign, BellOff,
+} from 'lucide-react';
 
 interface RoomSettingsModalProps {
   room: Room | null;
@@ -13,6 +16,36 @@ interface RoomSettingsModalProps {
   onRoomUpdated?: () => void;
 }
 
+const NOTIFICATION_MODES: {
+  value: NotificationMode;
+  label: string;
+  description: string;
+  icon: React.ReactNode;
+  activeClasses: string;
+}[] = [
+  {
+    value: 'ALL',
+    label: 'All messages',
+    description: 'Notify me about every new message',
+    icon: <BellRing className="w-4 h-4" />,
+    activeClasses: 'bg-blue-600/20 border-blue-500/40 text-blue-300',
+  },
+  {
+    value: 'MENTIONS_ONLY',
+    label: 'Mentions only',
+    description: 'Only notify me when someone tags me with @username',
+    icon: <AtSign className="w-4 h-4" />,
+    activeClasses: 'bg-violet-500/15 border-violet-500/40 text-violet-300',
+  },
+  {
+    value: 'MUTED',
+    label: 'Mute',
+    description: 'Never notify me about this room',
+    icon: <BellOff className="w-4 h-4" />,
+    activeClasses: 'bg-red-500/10 border-red-500/40 text-red-300',
+  },
+];
+
 export const RoomSettingsModal: React.FC<RoomSettingsModalProps> = ({
   room,
   currentUser,
@@ -21,12 +54,14 @@ export const RoomSettingsModal: React.FC<RoomSettingsModalProps> = ({
   onRoomDeleted,
   onRoomUpdated,
 }) => {
-  const [section, setSection] = useState<'general' | 'security' | 'members'>('general');
+  const [section, setSection] = useState<'general' | 'security' | 'notifications' | 'members'>('general');
   const [roomName, setRoomName] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [isProtected, setIsProtected] = useState(false);
   const [members, setMembers] = useState<RoomMember[]>([]);
   const [isMembersLoading, setIsMembersLoading] = useState(false);
+  const [notifMode, setNotifMode] = useState<NotificationMode>('ALL');
+  const [isSavingNotifMode, setIsSavingNotifMode] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
@@ -56,6 +91,10 @@ export const RoomSettingsModal: React.FC<RoomSettingsModalProps> = ({
       const isManager = room.createdBy === currentUser.id || currentUser.role === 'ADMIN';
       setSection(isManager ? 'general' : 'members');
       loadMembers();
+      roomApi
+        .getNotificationSettings(room.id)
+        .then((s) => setNotifMode(s.mode))
+        .catch(() => setNotifMode((room.notificationMode ?? 'ALL') as NotificationMode));
     }
   }, [isOpen, room, loadMembers, currentUser.id, currentUser.role]);
 
@@ -65,13 +104,18 @@ export const RoomSettingsModal: React.FC<RoomSettingsModalProps> = ({
   const isAdmin = currentUser.role === 'ADMIN';
   const canManage = isOwner || isAdmin;
 
-  const sections: { id: 'general' | 'security' | 'members'; label: string; icon: React.ReactNode }[] = [];
+  const sections: {
+    id: 'general' | 'security' | 'notifications' | 'members';
+    label: string;
+    icon: React.ReactNode;
+  }[] = [];
   if (canManage) {
     sections.push(
       { id: 'general', label: 'General', icon: <Pencil className="w-3.5 h-3.5" /> },
       { id: 'security', label: 'Security', icon: <Lock className="w-3.5 h-3.5" /> }
     );
   }
+  sections.push({ id: 'notifications', label: 'Notifications', icon: <BellRing className="w-3.5 h-3.5" /> });
   sections.push({ id: 'members', label: `Members (${members.length})`, icon: <Users className="w-3.5 h-3.5" /> });
 
   const handleRename = async (e: React.FormEvent) => {
@@ -136,6 +180,31 @@ export const RoomSettingsModal: React.FC<RoomSettingsModalProps> = ({
       setSuccessMsg('Member kicked from room.');
     } catch (err: any) {
       setErrorMsg(err.response?.data?.message || 'Failed to kick member');
+    }
+  };
+
+  const handleSetNotificationMode = async (mode: NotificationMode) => {
+    if (isSavingNotifMode) return;
+    setErrorMsg(null);
+    setSuccessMsg(null);
+    const previous = notifMode;
+    setNotifMode(mode);
+    setIsSavingNotifMode(true);
+    try {
+      await roomApi.updateNotificationSettings(room.id, mode);
+      onRoomUpdated?.();
+      setSuccessMsg(
+        mode === 'MUTED'
+          ? 'Room muted. You will not receive notifications.'
+          : mode === 'MENTIONS_ONLY'
+            ? 'You will only be notified when someone tags you.'
+            : 'You will be notified about all messages.'
+      );
+    } catch (err: any) {
+      setNotifMode(previous);
+      setErrorMsg(err.response?.data?.message || 'Failed to update notification settings');
+    } finally {
+      setIsSavingNotifMode(false);
     }
   };
 
@@ -355,6 +424,35 @@ export const RoomSettingsModal: React.FC<RoomSettingsModalProps> = ({
                       </div>
                     </form>
                   )}
+                </div>
+              )}
+
+              {section === 'notifications' && (
+                <div className="space-y-2">
+                  <p className="text-xs text-slate-400">
+                    Choose what triggers notifications for you in this room. Tags use{' '}
+                    <span className="text-blue-400 font-semibold">@username</span>.
+                  </p>
+                  {NOTIFICATION_MODES.map((opt) => {
+                    const active = notifMode === opt.value;
+                    return (
+                      <button
+                        key={opt.value}
+                        onClick={() => handleSetNotificationMode(opt.value)}
+                        disabled={isSavingNotifMode}
+                        className={`w-full flex items-center gap-3 p-3 rounded-2xl border text-left transition-all disabled:opacity-60 ${
+                          active ? opt.activeClasses : 'bg-slate-950/60 border-slate-800 hover:border-slate-600'
+                        }`}
+                      >
+                        <span className={active ? '' : 'text-slate-400'}>{opt.icon}</span>
+                        <span className="flex-1 min-w-0">
+                          <span className="text-xs font-bold block">{opt.label}</span>
+                          <span className="text-[10px] text-slate-500 block">{opt.description}</span>
+                        </span>
+                        {active && <Check className="w-4 h-4 shrink-0" />}
+                      </button>
+                    );
+                  })}
                 </div>
               )}
 

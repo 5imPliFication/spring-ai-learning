@@ -10,6 +10,8 @@ import type {
   UpdateProfileRequest,
   UpdateRoomRequest,
   AppNotification,
+  NotificationMode,
+  NotificationSettingsResponse,
   PresignedUploadRequest,
   PresignedUploadResponse,
 } from '../types';
@@ -201,6 +203,19 @@ export const roomApi = {
 
   deleteMessage: async (roomId: string, messageId: number): Promise<void> => {
     await apiClient.delete(`/rooms/${roomId}/messages/${messageId}`);
+  },
+
+  getNotificationSettings: async (roomId: string): Promise<NotificationSettingsResponse> => {
+    const res = await apiClient.get<NotificationSettingsResponse>(`/rooms/${roomId}/notification-settings`);
+    return res.data;
+  },
+
+  updateNotificationSettings: async (roomId: string, mode: NotificationMode): Promise<void> => {
+    await apiClient.put(`/rooms/${roomId}/notification-settings`, { mode });
+  },
+
+  markRoomRead: async (roomId: string): Promise<void> => {
+    await apiClient.post(`/rooms/${roomId}/read`);
   },
 };
 

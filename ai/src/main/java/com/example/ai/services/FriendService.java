@@ -211,7 +211,9 @@ public class FriendService {
                 room.getPasswordHash() != null,
                 room.getCreatedBy(),
                 room.getCreatedAt(),
-                room.isPrivate()
+                room.isPrivate(),
+                0,
+                com.example.ai.entity.RoomNotificationSetting.MODE_ALL
         );
     }
 }

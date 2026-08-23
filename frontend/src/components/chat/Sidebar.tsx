@@ -1,9 +1,12 @@
-import React, { useState, useEffect } from 'react';
-import type { Room, User, Friend } from '../../types';
+import React, { useState, useEffect, useRef } from 'react';
+import type { Room, User, Friend, NotificationMode } from '../../types';
 import { friendApi } from '../../services/api';
 import { Avatar } from '../ui/Avatar';
 import { NotificationBell } from '../notifications/NotificationBell';
-import { Hash, Plus, LogOut, Search, X, Users, ShieldAlert, Lock, Compass, MessageSquare, EyeOff } from 'lucide-react';
+import {
+  Hash, Plus, LogOut, Search, X, Users, ShieldAlert, Lock, Compass,
+  MessageSquare, EyeOff, AtSign, BellOff, BellRing,
+} from 'lucide-react';
 
 interface SidebarProps {
   user: User;
@@ -18,6 +21,26 @@ interface SidebarProps {
   onLogout: () => void;
   onCloseMobile?: () => void;
   friendsRefreshKey?: number;
+  onUpdateNotificationMode?: (roomId: string, mode: NotificationMode) => void;
+}
+
+const MODE_OPTIONS: {
+  value: NotificationMode;
+  label: string;
+  description: string;
+  icon: React.ReactNode;
+}[] = [
+  { value: 'ALL', label: 'All messages', description: 'Notify me about everything', icon: <BellRing className="w-3.5 h-3.5" /> },
+  { value: 'MENTIONS_ONLY', label: 'Mentions only', description: 'Only when someone tags me', icon: <AtSign className="w-3.5 h-3.5" /> },
+  { value: 'MUTED', label: 'Mute', description: 'Never notify me', icon: <BellOff className="w-3.5 h-3.5" /> },
+];
+
+interface RoomMenuState {
+  roomId: string;
+  roomName: string;
+  currentMode: NotificationMode;
+  x: number;
+  y: number;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -33,14 +56,56 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onLogout,
   onCloseMobile,
   friendsRefreshKey = 0,
+  onUpdateNotificationMode,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [friendsList, setFriendsList] = useState<Friend[]>([]);
   const [dmLoadingId, setDmLoadingId] = useState<string | null>(null);
+  const [roomMenu, setRoomMenu] = useState<RoomMenuState | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     loadFriendsPreview();
   }, [friendsRefreshKey]);
+
+  useEffect(() => {
+    if (!roomMenu) return;
+    const closeOnClick = (e: MouseEvent) => {
+      if (menuRef.current && menuRef.current.contains(e.target as Node)) return;
+      setRoomMenu(null);
+    };
+    const closeOnEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setRoomMenu(null);
+    };
+    window.addEventListener('click', closeOnClick);
+    window.addEventListener('contextmenu', closeOnClick);
+    window.addEventListener('keydown', closeOnEsc);
+    return () => {
+      window.removeEventListener('click', closeOnClick);
+      window.removeEventListener('contextmenu', closeOnClick);
+      window.removeEventListener('keydown', closeOnEsc);
+    };
+  }, [roomMenu]);
+
+  const handleSetMode = (mode: NotificationMode) => {
+    if (roomMenu && onUpdateNotificationMode) {
+      onUpdateNotificationMode(roomMenu.roomId, mode);
+    }
+    setRoomMenu(null);
+  };
+
+  const openRoomMenu = (e: React.MouseEvent, room: Room) => {
+    if (!onUpdateNotificationMode) return;
+    e.preventDefault();
+    e.stopPropagation();
+    setRoomMenu({
+      roomId: room.id,
+      roomName: room.name,
+      currentMode: room.notificationMode ?? 'ALL',
+      x: Math.min(e.clientX, window.innerWidth - 232),
+      y: Math.min(e.clientY, window.innerHeight - 180),
+    });
+  };
 
   const loadFriendsPreview = async () => {
     try {
@@ -70,6 +135,41 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   return (
     <aside className="w-80 h-full bg-slate-900 border-r border-slate-800 flex flex-col flex-shrink-0 select-none">
+      {/* Room notification mode context menu */}
+      {roomMenu && (
+        <div
+          ref={menuRef}
+          onClick={(e) => e.stopPropagation()}
+          onContextMenu={(e) => e.preventDefault()}
+          className="fixed z-50 w-56 rounded-xl bg-slate-950 border border-slate-700 shadow-2xl overflow-hidden"
+          style={{ left: roomMenu.x, top: roomMenu.y }}
+        >
+          <div className="px-3 py-2 border-b border-slate-800">
+            <span className="text-[11px] font-bold text-white truncate block">#{roomMenu.roomName}</span>
+            <span className="text-[10px] text-slate-500">Notifications</span>
+          </div>
+          <div className="py-1">
+            {MODE_OPTIONS.map((opt) => (
+              <button
+                key={opt.value}
+                onClick={() => handleSetMode(opt.value)}
+                className={`w-full flex items-center gap-2 px-3 py-2 text-left transition-colors ${
+                  roomMenu.currentMode === opt.value
+                    ? 'bg-blue-600/20 text-blue-300'
+                    : 'text-slate-300 hover:bg-slate-900'
+                }`}
+              >
+                {opt.icon}
+                <span className="flex flex-col min-w-0">
+                  <span className="text-xs font-semibold">{opt.label}</span>
+                  <span className="text-[10px] text-slate-500 truncate">{opt.description}</span>
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* User Header */}
       <div className="p-4 border-b border-slate-800 flex items-center justify-between">
         <button
@@ -202,10 +302,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
         ) : (
           filteredRooms.map((room) => {
             const isActive = room.id === activeRoomId;
+            const isMuted = room.notificationMode === 'MUTED';
+            const isMentionsOnly = room.notificationMode === 'MENTIONS_ONLY';
+            const unread = room.unreadCount ?? 0;
+            const showBadge = !isMuted && unread > 0;
             return (
               <button
                 key={room.id}
                 onClick={() => onSelectRoom(room.id)}
+                onContextMenu={(e) => openRoomMenu(e, room)}
+                title={isMuted ? `${room.name} (muted)` : 'Right-click for notification options'}
                 className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium transition-all text-left ${
                   isActive
                     ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20 font-semibold'
@@ -225,7 +331,23 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     <Hash className="w-3.5 h-3.5" />
                   )}
                 </div>
-                <span className="truncate flex-1">{room.name}</span>
+                <span className={`truncate flex-1 ${isMuted && !isActive ? 'opacity-60' : ''}`}>
+                  {room.name}
+                </span>
+                {isMuted && !isActive && (
+                  <BellOff className="w-3 h-3 text-slate-500 shrink-0" />
+                )}
+                {showBadge &&
+                  (isMentionsOnly ? (
+                    <span className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-violet-500 text-white text-[10px] font-bold shrink-0">
+                      <AtSign className="w-2.5 h-2.5" />
+                      {unread > 99 ? '99+' : unread}
+                    </span>
+                  ) : (
+                    <span className="px-1.5 py-0.5 rounded-full bg-blue-500 text-white text-[10px] font-bold shrink-0 min-w-[20px] text-center">
+                      {unread > 99 ? '99+' : unread}
+                    </span>
+                  ))}
               </button>
             );
           })

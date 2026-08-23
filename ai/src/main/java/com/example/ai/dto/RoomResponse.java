@@ -9,5 +9,7 @@ public record RoomResponse(
     boolean isProtected,
     String createdBy,
     Instant createdAt,
-    boolean isPrivate
+    boolean isPrivate,
+    long unreadCount,
+    String notificationMode
 ) {}

@@ -16,6 +16,8 @@ export interface AuthResponse {
   role: string;
 }
 
+export type NotificationMode = 'ALL' | 'MENTIONS_ONLY' | 'MUTED';
+
 export interface Room {
   id: string;
   name: string;
@@ -24,6 +26,8 @@ export interface Room {
   isPrivate?: boolean;
   createdBy?: string;
   createdAt: string;
+  unreadCount?: number;
+  notificationMode?: NotificationMode;
 }
 
 export interface Message {
@@ -51,6 +55,7 @@ export interface ChatMessagePayload {
   replyToId?: number;
   messageId?: number;
   deleted?: boolean;
+  mentionedUserIds?: string[];
 }
 
 export interface Friend {
@@ -123,6 +128,10 @@ export interface AppNotification {
   roomId?: string;
   read: boolean;
   createdAt: string;
+}
+
+export interface NotificationSettingsResponse {
+  mode: NotificationMode;
 }
 
 export interface AppError {

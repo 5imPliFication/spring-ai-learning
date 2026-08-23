@@ -4,7 +4,7 @@ interface AvatarProps {
   name?: string;
   src?: string | null;
   isAi?: boolean;
-  size?: 'sm' | 'md' | 'lg';
+  size?: 'xs' | 'sm' | 'md' | 'lg';
 }
 
 const colorPairs = [
@@ -26,6 +26,7 @@ function getColorClass(name: string) {
 
 export const Avatar: React.FC<AvatarProps> = ({ name = '?', src, isAi = false, size = 'md' }) => {
   const sizeClasses = {
+    xs: 'w-6 h-6 text-[10px]',
     sm: 'w-7 h-7 text-xs',
     md: 'w-9 h-9 text-sm',
     lg: 'w-11 h-11 text-base',
