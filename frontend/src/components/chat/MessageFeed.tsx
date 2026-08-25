@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef } from 'react';
-import type { Message, RoomMember } from '../../types';
+import type { Message, RoomMember, Friend } from '../../types';
 import { MessageItem } from './MessageItem';
 import { Avatar } from '../ui/Avatar';
 import { MessageSquare, Sparkles } from 'lucide-react';
@@ -16,6 +16,9 @@ interface MessageFeedProps {
   mentionedMessageIds?: Set<number>;
   onReply?: (message: Message) => void;
   onDelete?: (messageId: number) => void;
+  friends?: Friend[];
+  onViewProfile?: (userId: string) => void;
+  onUnfriend?: (friendId: string) => void;
 }
 
 interface GroupedMessage extends Message {
@@ -49,6 +52,9 @@ export const MessageFeed: React.FC<MessageFeedProps> = ({
   mentionedMessageIds,
   onReply,
   onDelete,
+  friends = [],
+  onViewProfile,
+  onUnfriend,
 }) => {
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -92,6 +98,9 @@ export const MessageFeed: React.FC<MessageFeedProps> = ({
             mentionsMe={mentionedMessageIds?.has(msg.id) ?? false}
             onReply={onReply}
             onDelete={onDelete}
+            friends={friends}
+            onViewProfile={onViewProfile}
+            onUnfriend={onUnfriend}
           />
         );
       })}

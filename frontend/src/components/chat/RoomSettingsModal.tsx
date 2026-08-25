@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import type { Room, User, RoomMember, NotificationMode } from '../../types';
 import { roomApi } from '../../services/api';
 import { Avatar } from '../ui/Avatar';
+import { UserProfileCard } from '../profile/UserProfileCard';
 import {
   X, Trash2, Settings, UserMinus, AlertTriangle, Pencil, Lock, Users, KeyRound, Unlock,
   Check, Loader2, Copy, Link2, BellRing, AtSign, BellOff,
@@ -66,6 +67,7 @@ export const RoomSettingsModal: React.FC<RoomSettingsModalProps> = ({
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [viewingUserId, setViewingUserId] = useState<string | null>(null);
 
   const loadMembers = useCallback(async () => {
     if (!room) return;
@@ -97,6 +99,13 @@ export const RoomSettingsModal: React.FC<RoomSettingsModalProps> = ({
         .catch(() => setNotifMode((room.notificationMode ?? 'ALL') as NotificationMode));
     }
   }, [isOpen, room, loadMembers, currentUser.id, currentUser.role]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleEsc = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', handleEsc);
+    return () => window.removeEventListener('keydown', handleEsc);
+  }, [isOpen, onClose]);
 
   if (!isOpen || !room) return null;
 
@@ -232,8 +241,8 @@ export const RoomSettingsModal: React.FC<RoomSettingsModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm">
-      <div className="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl relative flex flex-col max-h-[85vh]">
+    <div className=" fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm" onClick={onClose}>
+      <div className="w-full max-w-screen-sm bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl relative flex flex-col max-h-[85vh]" onClick={(e) => e.stopPropagation()}>
         <button
           onClick={onClose}
           className="absolute top-5 right-5 text-slate-400 hover:text-white p-1 rounded-xl hover:bg-slate-800 transition-colors"
@@ -474,11 +483,11 @@ export const RoomSettingsModal: React.FC<RoomSettingsModalProps> = ({
                           key={m.userId}
                           className="flex items-center justify-between p-2.5 rounded-xl bg-slate-950/60 border border-slate-800/80"
                         >
-                          <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="flex items-center gap-2.5 min-w-0 cursor-pointer" onClick={() => setViewingUserId(m.userId)}>
                             <Avatar name={m.displayName} src={m.avatarUrl} size="sm" />
                             <div className="min-w-0">
                               <div className="flex items-center gap-1.5">
-                                <span className="text-xs font-semibold text-white truncate">{m.displayName}</span>
+                                <span className="text-xs font-semibold text-white truncate hover:underline">{m.displayName}</span>
                                 {isOwnerRow && (
                                   <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 font-bold uppercase tracking-wide">
                                     Owner
@@ -511,6 +520,9 @@ export const RoomSettingsModal: React.FC<RoomSettingsModalProps> = ({
             </div>
           </>
       </div>
+      {viewingUserId && (
+        <UserProfileCard userId={viewingUserId} onClose={() => setViewingUserId(null)} />
+      )}
     </div>
   );
 };

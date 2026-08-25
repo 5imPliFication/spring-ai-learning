@@ -3,6 +3,7 @@ import type { Room, User, Friend, NotificationMode } from '../../types';
 import { friendApi } from '../../services/api';
 import { Avatar } from '../ui/Avatar';
 import { NotificationBell } from '../notifications/NotificationBell';
+import { FriendContextMenu } from '../friends/FriendContextMenu';
 import {
   Hash, Plus, LogOut, Search, X, Users, ShieldAlert, Lock, Compass,
   MessageSquare, EyeOff, AtSign, BellOff, BellRing,
@@ -22,6 +23,7 @@ interface SidebarProps {
   onCloseMobile?: () => void;
   friendsRefreshKey?: number;
   onUpdateNotificationMode?: (roomId: string, mode: NotificationMode) => void;
+  onViewProfile?: (userId: string) => void;
 }
 
 const MODE_OPTIONS: {
@@ -57,11 +59,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onCloseMobile,
   friendsRefreshKey = 0,
   onUpdateNotificationMode,
+  onViewProfile,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [friendsList, setFriendsList] = useState<Friend[]>([]);
   const [dmLoadingId, setDmLoadingId] = useState<string | null>(null);
   const [roomMenu, setRoomMenu] = useState<RoomMenuState | null>(null);
+  const [friendMenu, setFriendMenu] = useState<{ friend: Friend; x: number; y: number } | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -105,6 +109,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
       x: Math.min(e.clientX, window.innerWidth - 232),
       y: Math.min(e.clientY, window.innerHeight - 180),
     });
+  };
+
+  const openFriendMenu = (e: React.MouseEvent, friend: Friend) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setFriendMenu({
+      friend,
+      x: Math.min(e.clientX, window.innerWidth - 220),
+      y: Math.min(e.clientY, window.innerHeight - 280),
+    });
+  };
+
+  const handleFriendUnfriended = (friendId: string) => {
+    setFriendsList((prev) => prev.filter((f) => f.friendId !== friendId));
   };
 
   const loadFriendsPreview = async () => {
@@ -224,17 +242,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <Users className="w-3.5 h-3.5 text-blue-400" />
             Friends ({friendsList.length})
           </span>
-          <button
-            onClick={onOpenFriends}
-            className="text-[11px] font-semibold text-blue-400 hover:underline"
-          >
-            Manage
-          </button>
         </div>
 
         {friendsList.length === 0 ? (
           <div className="text-center py-2 text-[11px] text-slate-500">
-            No friends added yet. Click "Manage" to add friends!
+            brodie got no friends
           </div>
         ) : (
           <div className="space-y-1 max-h-72 overflow-y-auto pr-1">
@@ -244,12 +256,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <button
                   key={f.id}
                   onClick={() => handleStartDM(f.friendId)}
+                  onContextMenu={(e) => openFriendMenu(e, f)}
                   disabled={isLoading}
                   title={`Message ${f.friendDisplayName}`}
                   className="w-full flex items-center gap-2 p-2 rounded-xl bg-slate-900/80 hover:bg-slate-800 border border-slate-800/60 transition-colors disabled:opacity-60 disabled:cursor-wait text-left"
                 >
                   <Avatar name={f.friendDisplayName} src={f.friendAvatarUrl} size="sm" />
-                  <span className="text-xs font-medium text-slate-200 truncate flex-1">{f.friendDisplayName}</span>
+                  <span className="text-xs font-medium text-slate-200 truncate flex-1">
+                    {f.friendDisplayName}
+                  </span>
                   <MessageSquare className="w-3 h-3 text-blue-400 shrink-0" />
                 </button>
               );
@@ -364,6 +379,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <span>Sign Out</span>
         </button>
       </div>
+      {/* Friend context menu */}
+      {friendMenu && (
+        <FriendContextMenu
+          friend={friendMenu.friend}
+          x={friendMenu.x}
+          y={friendMenu.y}
+          onClose={() => setFriendMenu(null)}
+          onViewProfile={(userId) => { onViewProfile?.(userId); setFriendMenu(null); }}
+          onUnfriend={handleFriendUnfriended}
+          showMessageOption
+          onMessage={(friendId) => handleStartDM(friendId)}
+        />
+      )}
     </aside>
   );
 };

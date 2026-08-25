@@ -1,7 +1,8 @@
-import React from 'react';
-import type { Message } from '../../types';
+import React, { useState } from 'react';
+import type { Message, Friend } from '../../types';
 import { Avatar } from '../ui/Avatar';
 import { Sparkles, CornerUpLeft, Trash2, FileText, Download } from 'lucide-react';
+import { FriendContextMenu } from '../friends/FriendContextMenu';
 
 interface MessageItemProps {
   message: Message;
@@ -13,6 +14,9 @@ interface MessageItemProps {
   mentionsMe?: boolean;
   onReply?: (message: Message) => void;
   onDelete?: (messageId: number) => void;
+  friends?: Friend[];
+  onViewProfile?: (userId: string) => void;
+  onUnfriend?: (friendId: string) => void;
 }
 
 const escapeRegex = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -133,10 +137,16 @@ export const MessageItem: React.FC<MessageItemProps> = ({
   mentionsMe = false,
   onReply,
   onDelete,
+  friends = [],
+  onViewProfile,
+  onUnfriend,
 }) => {
   const isAi = message.senderId === 'ai-bot';
   const showTime = isLastInGroup;
   const margin = isFirstInGroup ? 'mt-2' : 'mt-0.5';
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
+
+  const isDeleted = message.deleted;
 
   const formatTime = (dateStr: string) => {
     try {
@@ -147,9 +157,19 @@ export const MessageItem: React.FC<MessageItemProps> = ({
     }
   };
 
+  const handleContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (isSelf || isAi) return;
+    setContextMenu({
+      x: Math.min(e.clientX, window.innerWidth - 220),
+      y: Math.min(e.clientY, window.innerHeight - 280),
+    });
+  };
+
   const actions = (
     <div className="absolute -top-3 right-0 z-10 hidden group-hover:flex items-center gap-1 rounded-lg bg-slate-900/95 border border-slate-800/80 p-1 shadow-lg">
-      {onReply && (
+      {onReply && !isDeleted && (
         <button
           onClick={() => onReply(message)}
           className="px-2 py-1 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-[10px] font-semibold flex items-center gap-1 transition-colors"
@@ -170,7 +190,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({
     </div>
   );
 
-  if (message.deleted) {
+  if (isDeleted) {
     if (isSelf) {
       return (
         <div className={`flex flex-col items-end ${margin} group relative`}>
@@ -269,7 +289,10 @@ export const MessageItem: React.FC<MessageItemProps> = ({
   }
 
   return (
-    <div className={`flex gap-3 max-w-[75%] md:max-w-[65%] ${margin} group relative`}>
+    <div
+      className={`flex gap-3 max-w-[75%] md:max-w-[65%] ${margin} group relative`}
+      onContextMenu={handleContextMenu}
+    >
       {actions}
       {isFirstInGroup ? <Avatar name={message.senderName} size="md" /> : <div className="w-9 shrink-0" />}
       <div className="flex flex-col">
@@ -295,6 +318,23 @@ export const MessageItem: React.FC<MessageItemProps> = ({
           </span>
         )}
       </div>
+      {contextMenu && (
+        <FriendContextMenu
+          friend={{
+            id: 0,
+            friendId: message.senderId,
+            friendUsername: '',
+            friendDisplayName: message.senderName,
+            status: 'ACCEPTED',
+            createdAt: '',
+          }}
+          x={contextMenu.x}
+          y={contextMenu.y}
+          onClose={() => setContextMenu(null)}
+          onViewProfile={(userId) => { onViewProfile?.(userId); setContextMenu(null); }}
+          onUnfriend={(friendId) => { onUnfriend?.(friendId); setContextMenu(null); }}
+        />
+      )}
     </div>
   );
 };

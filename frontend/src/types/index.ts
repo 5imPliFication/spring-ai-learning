@@ -1,3 +1,10 @@
+export interface UserProfileLink {
+  id?: number;
+  label: string;
+  url: string;
+  position?: number;
+}
+
 export interface User {
   id: string;
   username: string;
@@ -6,6 +13,16 @@ export interface User {
   avatarUrl?: string;
   lastActiveAt?: string;
   createdAt?: string;
+  bio?: string;
+  location?: string;
+  gender?: string;
+  phone?: string;
+  links?: UserProfileLink[];
+  showBio?: boolean;
+  showLocation?: boolean;
+  showGender?: boolean;
+  showPhone?: boolean;
+  showLinks?: boolean;
 }
 
 export interface AuthResponse {
@@ -116,6 +133,16 @@ export interface UpdateProfileRequest {
   avatarUrl?: string;
   currentPassword?: string;
   newPassword?: string;
+  bio?: string | null;
+  location?: string | null;
+  gender?: string | null;
+  phone?: string | null;
+  links?: { label: string; url: string }[];
+  showBio?: boolean;
+  showLocation?: boolean;
+  showGender?: boolean;
+  showPhone?: boolean;
+  showLinks?: boolean;
 }
 
 export interface AppNotification {

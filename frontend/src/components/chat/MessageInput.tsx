@@ -58,6 +58,18 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     };
   }, [previewUrl]);
 
+  useEffect(() => {
+    const handleSlash = (e: KeyboardEvent) => {
+      if (e.key !== '/') return;
+      const tag = (e.target as HTMLElement).tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (e.target as HTMLElement).isContentEditable) return;
+      e.preventDefault();
+      textareaRef.current?.focus();
+    };
+    window.addEventListener('keydown', handleSlash);
+    return () => window.removeEventListener('keydown', handleSlash);
+  }, []);
+
   const mentionCandidates = useMemo(() => {
     if (!mentionState) return [];
     const q = mentionState.query.toLowerCase();
@@ -332,7 +344,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
           onBlur={() => setTimeout(closeMentionMenu, 120)}
           disabled={disabled || isUploading}
           placeholder="Type a message... (@ to tag members, @ai to ask Azura) — Shift+Enter for a new line"
-          className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-colors disabled:opacity-50 resize-none overflow-y-auto max-h-32 leading-relaxed"
+          className="[scrollbar-width:none] flex-1 bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-colors disabled:opacity-50 resize-none overflow-y-auto max-h-32 leading-relaxed"
         />
 
         <input

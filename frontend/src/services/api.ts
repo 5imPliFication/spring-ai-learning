@@ -109,6 +109,11 @@ export const userApi = {
     const res = await apiClient.get<User[]>(`/users/search?query=${encodeURIComponent(query)}`);
     return res.data;
   },
+
+  getPublicProfile: async (userId: string): Promise<User> => {
+    const res = await apiClient.get<User>(`/users/${userId}/profile`);
+    return res.data;
+  },
 };
 
 export const friendApi = {

@@ -2,8 +2,8 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router';
 import { useAuth } from '../../context/AuthContext';
 import { useNotifications } from '../../context/NotificationContext';
-import type { Room, Message, ChatMessagePayload, User, AppError, MessageMedia, RoomMember, NotificationMode } from '../../types';
-import { roomApi, setGlobalErrorHandler } from '../../services/api';
+import type { Room, Message, ChatMessagePayload, User, AppError, MessageMedia, RoomMember, NotificationMode, Friend } from '../../types';
+import { roomApi, friendApi, setGlobalErrorHandler } from '../../services/api';
 import { wsService } from '../../services/websocket';
 import { Sidebar } from './Sidebar';
 import { ChatHeader } from './ChatHeader';
@@ -14,6 +14,7 @@ import { DiscoverRoomsModal } from './DiscoverRoomsModal';
 import { JoinRoomModal } from './JoinRoomModal';
 import { RoomSettingsModal } from './RoomSettingsModal';
 import { ProfileModal } from '../profile/ProfileModal';
+import { UserProfileCard } from '../profile/UserProfileCard';
 import { FriendsModal } from '../friends/FriendsModal';
 import { AdminDashboard } from '../admin/AdminDashboard';
 import { ErrorPage } from '../common/ErrorPage';
@@ -56,6 +57,8 @@ export const ChatLayout: React.FC = () => {
   const [pendingJoinRoom, setPendingJoinRoom] = useState<Room | null>(null);
   const [isAdminViewOpen, setIsAdminViewOpen] = useState(false);
   const [friendsRefreshKey, setFriendsRefreshKey] = useState(0);
+  const [friendsList, setFriendsList] = useState<Friend[]>([]);
+  const [viewingUserId, setViewingUserId] = useState<string | null>(null);
 
   // Global Error State
   const [appError, setAppError] = useState<AppError | null>(null);
@@ -100,6 +103,14 @@ export const ChatLayout: React.FC = () => {
       cancelled = true;
     };
   }, [fetchJoinedRooms, roomId, navigate]);
+
+  useEffect(() => {
+    friendApi.getFriends().then(setFriendsList).catch(() => {});
+  }, [friendsRefreshKey]);
+
+  const handleFriendUnfriended = useCallback((friendId: string) => {
+    setFriendsList((prev) => prev.filter((f) => f.friendId !== friendId));
+  }, []);
 
   const handleIncomingWebSocketMessage = useCallback((payload: ChatMessagePayload) => {
     if (payload.type === 'TYPING') {
@@ -339,12 +350,15 @@ export const ChatLayout: React.FC = () => {
           onCloseMobile={() => setIsMobileSidebarOpen(false)}
           friendsRefreshKey={friendsRefreshKey}
           onUpdateNotificationMode={handleUpdateNotificationMode}
+          onViewProfile={(userId) => setViewingUserId(userId)}
         />
       </div>
 
       {/* Main Chat Area */}
       <main className="flex-1 flex flex-col h-full min-w-0 bg-slate-950">
-        {activeRoom ? (
+        {viewingUserId ? (
+          <UserProfileCard userId={viewingUserId} onClose={() => setViewingUserId(null)} />
+        ) : activeRoom ? (
           <>
             <ChatHeader
               room={activeRoom}
@@ -362,6 +376,9 @@ export const ChatLayout: React.FC = () => {
               mentionedMessageIds={mentionedMessageIds}
               onReply={setReplyingTo}
               onDelete={handleDeleteMessage}
+              friends={friendsList}
+              onViewProfile={(userId) => setViewingUserId(userId)}
+              onUnfriend={handleFriendUnfriended}
             />
             <MessageInput
               onSendMessage={handleSendMessage}
