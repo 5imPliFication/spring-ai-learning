@@ -1,3 +1,10 @@
+export interface UserProfileLink {
+  id?: number;
+  label: string;
+  url: string;
+  position?: number;
+}
+
 export interface User {
   id: string;
   username: string;
@@ -6,6 +13,16 @@ export interface User {
   avatarUrl?: string;
   lastActiveAt?: string;
   createdAt?: string;
+  bio?: string;
+  location?: string;
+  gender?: string;
+  phone?: string;
+  links?: UserProfileLink[];
+  showBio?: boolean;
+  showLocation?: boolean;
+  showGender?: boolean;
+  showPhone?: boolean;
+  showLinks?: boolean;
 }
 
 export interface AuthResponse {
@@ -16,6 +33,8 @@ export interface AuthResponse {
   role: string;
 }
 
+export type NotificationMode = 'ALL' | 'MENTIONS_ONLY' | 'MUTED';
+
 export interface Room {
   id: string;
   name: string;
@@ -24,6 +43,8 @@ export interface Room {
   isPrivate?: boolean;
   createdBy?: string;
   createdAt: string;
+  unreadCount?: number;
+  notificationMode?: NotificationMode;
 }
 
 export interface Message {
@@ -51,6 +72,7 @@ export interface ChatMessagePayload {
   replyToId?: number;
   messageId?: number;
   deleted?: boolean;
+  mentionedUserIds?: string[];
 }
 
 export interface Friend {
@@ -111,6 +133,16 @@ export interface UpdateProfileRequest {
   avatarUrl?: string;
   currentPassword?: string;
   newPassword?: string;
+  bio?: string | null;
+  location?: string | null;
+  gender?: string | null;
+  phone?: string | null;
+  links?: { label: string; url: string }[];
+  showBio?: boolean;
+  showLocation?: boolean;
+  showGender?: boolean;
+  showPhone?: boolean;
+  showLinks?: boolean;
 }
 
 export interface AppNotification {
@@ -123,6 +155,10 @@ export interface AppNotification {
   roomId?: string;
   read: boolean;
   createdAt: string;
+}
+
+export interface NotificationSettingsResponse {
+  mode: NotificationMode;
 }
 
 export interface AppError {

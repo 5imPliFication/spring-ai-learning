@@ -7,10 +7,14 @@ import { useAuth } from './AuthContext';
 interface NotificationContextType {
   notifications: AppNotification[];
   unreadCount: number;
+  roomUnreadDeltas: Record<string, number>;
   setActiveRoomId: (roomId: string | null) => void;
+  clearRoomDelta: (roomId: string) => void;
   markRead: (id: number) => void;
   markAllRead: () => void;
 }
+
+const NOTIFICATION_MESSAGE_TYPES = new Set(['MENTION', 'GROUP_MESSAGE', 'DM_MESSAGE', 'AI_REPLY']);
 
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
 
@@ -18,10 +22,20 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const { user } = useAuth();
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [roomUnreadDeltas, setRoomUnreadDeltas] = useState<Record<string, number>>({});
   const activeRoomIdRef = useRef<string | null>(null);
 
   const setActiveRoomId = useCallback((roomId: string | null) => {
     activeRoomIdRef.current = roomId;
+  }, []);
+
+  const clearRoomDelta = useCallback((roomId: string) => {
+    setRoomUnreadDeltas((prev) => {
+      if (!(roomId in prev)) return prev;
+      const next = { ...prev };
+      delete next[roomId];
+      return next;
+    });
   }, []);
 
   useEffect(() => {
@@ -49,7 +63,15 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         return;
       }
       setNotifications((prev) => [n, ...prev].slice(0, 50));
-      setUnreadCount((c) => c + 1);
+      if (!n.roomId || NOTIFICATION_MESSAGE_TYPES.has(n.type)) {
+        setUnreadCount((c) => c + 1);
+      }
+      if (n.roomId && NOTIFICATION_MESSAGE_TYPES.has(n.type)) {
+        setRoomUnreadDeltas((prev) => ({
+          ...prev,
+          [n.roomId as string]: (prev[n.roomId as string] ?? 0) + 1,
+        }));
+      }
     };
 
     wsService.subscribeToUserNotifications(user.id, handleNotification);
@@ -73,7 +95,15 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
   return (
     <NotificationContext.Provider
-      value={{ notifications, unreadCount, setActiveRoomId, markRead, markAllRead }}
+      value={{
+        notifications,
+        unreadCount,
+        roomUnreadDeltas,
+        setActiveRoomId,
+        clearRoomDelta,
+        markRead,
+        markAllRead,
+      }}
     >
       {children}
     </NotificationContext.Provider>

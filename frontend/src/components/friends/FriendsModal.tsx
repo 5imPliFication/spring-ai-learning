@@ -3,6 +3,8 @@ import type { Friend, User, Room } from '../../types';
 import { friendApi, userApi } from '../../services/api';
 import { X, UserPlus, MessageSquare, Search, Users, Check, Loader2, UserMinus } from 'lucide-react';
 import { Avatar } from '../ui/Avatar';
+import { UserProfileCard } from '../profile/UserProfileCard';
+import { FriendContextMenu } from './FriendContextMenu';
 
 interface FriendsModalProps {
   isOpen: boolean;
@@ -22,6 +24,15 @@ export const FriendsModal: React.FC<FriendsModalProps> = ({ isOpen, onClose, onS
   const [isLoading, setIsLoading] = useState(false);
   const [isRequestsLoading, setIsRequestsLoading] = useState(false);
   const [confirmUnfriendId, setConfirmUnfriendId] = useState<string | null>(null);
+  const [viewingUserId, setViewingUserId] = useState<string | null>(null);
+  const [friendMenu, setFriendMenu] = useState<{ friend: Friend; x: number; y: number } | null>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleEsc = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', handleEsc);
+    return () => window.removeEventListener('keydown', handleEsc);
+  }, [isOpen, onClose]);
 
   useEffect(() => {
     if (isOpen && activeTab === 'friends') {
@@ -131,11 +142,21 @@ export const FriendsModal: React.FC<FriendsModalProps> = ({ isOpen, onClose, onS
     }
   };
 
+  const handleFriendContextMenu = (e: React.MouseEvent, friend: Friend) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setFriendMenu({
+      friend,
+      x: Math.min(e.clientX, window.innerWidth - 220),
+      y: Math.min(e.clientY, window.innerHeight - 280),
+    });
+  };
+
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm">
-      <div className="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl relative max-h-[85vh] flex flex-col">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm" onClick={onClose}>
+      <div className="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl relative max-h-[85vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
         <button
           onClick={onClose}
           className="absolute top-5 right-5 text-slate-400 hover:text-white p-1 rounded-xl hover:bg-slate-800 transition-colors"
@@ -198,12 +219,13 @@ export const FriendsModal: React.FC<FriendsModalProps> = ({ isOpen, onClose, onS
                 return (
                   <div
                     key={f.id}
+                    onContextMenu={(e) => handleFriendContextMenu(e, f)}
                     className="flex items-center justify-between p-3 rounded-2xl bg-slate-950/60 border border-slate-800/80 hover:border-slate-700 transition-all"
                   >
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3 cursor-pointer" onClick={() => setViewingUserId(f.friendId)}>
                       <Avatar name={f.friendDisplayName} src={f.friendAvatarUrl} size="md" />
                       <div>
-                        <h4 className="text-sm font-bold text-white leading-tight">{f.friendDisplayName}</h4>
+                        <h4 className="text-sm font-bold text-white leading-tight hover:underline">{f.friendDisplayName}</h4>
                         <span className="text-xs text-slate-400 font-mono">@{f.friendUsername}</span>
                       </div>
                     </div>
@@ -367,6 +389,21 @@ export const FriendsModal: React.FC<FriendsModalProps> = ({ isOpen, onClose, onS
           </div>
         )}
       </div>
+      {viewingUserId && (
+        <UserProfileCard userId={viewingUserId} onClose={() => setViewingUserId(null)} />
+      )}
+      {friendMenu && (
+        <FriendContextMenu
+          friend={friendMenu.friend}
+          x={friendMenu.x}
+          y={friendMenu.y}
+          onClose={() => setFriendMenu(null)}
+          onViewProfile={(userId) => { setViewingUserId(userId); setFriendMenu(null); }}
+          onUnfriend={(friendId) => { handleUnfriend(friendId); setFriendMenu(null); }}
+          showMessageOption
+          onMessage={(friendId) => { handleStartDM(friendId); setFriendMenu(null); }}
+        />
+      )}
     </div>
   );
 };

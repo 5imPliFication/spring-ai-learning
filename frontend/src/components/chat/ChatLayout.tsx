@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router';
 import { useAuth } from '../../context/AuthContext';
 import { useNotifications } from '../../context/NotificationContext';
-import type { Room, Message, ChatMessagePayload, User, AppError, MessageMedia } from '../../types';
-import { roomApi, setGlobalErrorHandler } from '../../services/api';
+import type { Room, Message, ChatMessagePayload, User, AppError, MessageMedia, RoomMember, NotificationMode, Friend } from '../../types';
+import { roomApi, friendApi, setGlobalErrorHandler } from '../../services/api';
 import { wsService } from '../../services/websocket';
 import { Sidebar } from './Sidebar';
 import { ChatHeader } from './ChatHeader';
@@ -14,6 +14,7 @@ import { DiscoverRoomsModal } from './DiscoverRoomsModal';
 import { JoinRoomModal } from './JoinRoomModal';
 import { RoomSettingsModal } from './RoomSettingsModal';
 import { ProfileModal } from '../profile/ProfileModal';
+import { UserProfileCard } from '../profile/UserProfileCard';
 import { FriendsModal } from '../friends/FriendsModal';
 import { AdminDashboard } from '../admin/AdminDashboard';
 import { ErrorPage } from '../common/ErrorPage';
@@ -33,13 +34,15 @@ const mediaLabel = (m: Message | undefined): string | undefined => {
 
 export const ChatLayout: React.FC = () => {
   const { user, logout } = useAuth();
-  const { setActiveRoomId: setNotifActiveRoomId } = useNotifications();
+  const { setActiveRoomId: setNotifActiveRoomId, roomUnreadDeltas, clearRoomDelta } = useNotifications();
   const { roomId } = useParams();
   const navigate = useNavigate();
   const [currentUser, setCurrentUser] = useState<User | null>(user);
   const [joinedRooms, setJoinedRooms] = useState<Room[]>([]);
   const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
+  const [roomMembers, setRoomMembers] = useState<RoomMember[]>([]);
+  const [mentionedMessageIds, setMentionedMessageIds] = useState<Set<number>>(new Set());
   const [isAiTyping, setIsAiTyping] = useState(false);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const joiningRoomRef = useRef<string | null>(null);
@@ -54,6 +57,8 @@ export const ChatLayout: React.FC = () => {
   const [pendingJoinRoom, setPendingJoinRoom] = useState<Room | null>(null);
   const [isAdminViewOpen, setIsAdminViewOpen] = useState(false);
   const [friendsRefreshKey, setFriendsRefreshKey] = useState(0);
+  const [friendsList, setFriendsList] = useState<Friend[]>([]);
+  const [viewingUserId, setViewingUserId] = useState<string | null>(null);
 
   // Global Error State
   const [appError, setAppError] = useState<AppError | null>(null);
@@ -99,6 +104,14 @@ export const ChatLayout: React.FC = () => {
     };
   }, [fetchJoinedRooms, roomId, navigate]);
 
+  useEffect(() => {
+    friendApi.getFriends().then(setFriendsList).catch(() => {});
+  }, [friendsRefreshKey]);
+
+  const handleFriendUnfriended = useCallback((friendId: string) => {
+    setFriendsList((prev) => prev.filter((f) => f.friendId !== friendId));
+  }, []);
+
   const handleIncomingWebSocketMessage = useCallback((payload: ChatMessagePayload) => {
     if (payload.type === 'TYPING') {
       setIsAiTyping(true);
@@ -123,6 +136,11 @@ export const ChatLayout: React.FC = () => {
       if (payload.senderId === 'ai-bot') {
         setIsAiTyping(false);
       }
+      const mentionsMe = !!currentUser?.id
+        && !!payload.mentionedUserIds?.includes(currentUser.id);
+      if (mentionsMe && payload.messageId != null) {
+        setMentionedMessageIds((prev) => new Set(prev).add(payload.messageId as number));
+      }
       setMessages((prev) => {
         const replyMsg = payload.replyToId != null
           ? prev.find((m) => m.id === payload.replyToId)
@@ -143,7 +161,7 @@ export const ChatLayout: React.FC = () => {
         return [...prev, newMsg];
       });
     }
-  }, []);
+  }, [currentUser]);
 
   const executeJoinRoom = useCallback(async (roomId: string, password?: string) => {
     setActiveRoomId(roomId);
@@ -156,6 +174,19 @@ export const ChatLayout: React.FC = () => {
       const history = await roomApi.getMessages(roomId);
       setMessages(history);
       setReplyingTo(null);
+      setMentionedMessageIds(new Set());
+      clearRoomDelta(roomId);
+      roomApi.markRoomRead(roomId).catch((err) =>
+        console.error('Failed to mark room read:', err)
+      );
+
+      try {
+        const members = await roomApi.getMembers(roomId);
+        setRoomMembers(members);
+      } catch (err) {
+        console.error('Failed to load room members:', err);
+        setRoomMembers([]);
+      }
 
       if (subscribedRoomRef.current && subscribedRoomRef.current !== roomId) {
         wsService.unsubscribeRoom(subscribedRoomRef.current);
@@ -166,7 +197,7 @@ export const ChatLayout: React.FC = () => {
       console.error('Error joining room or fetching messages:', err);
       throw err;
     }
-  }, [fetchJoinedRooms, handleIncomingWebSocketMessage]);
+  }, [fetchJoinedRooms, handleIncomingWebSocketMessage, clearRoomDelta]);
 
   const handleSelectRoom = (roomId: string) => {
     navigate(`/rooms/${roomId}`);
@@ -251,6 +282,34 @@ export const ChatLayout: React.FC = () => {
     }
   };
 
+  const handleUpdateNotificationMode = async (targetRoomId: string, mode: NotificationMode) => {
+    try {
+      await roomApi.updateNotificationSettings(targetRoomId, mode);
+      setJoinedRooms((prev) =>
+        prev.map((r) =>
+          r.id === targetRoomId
+            ? { ...r, notificationMode: mode, unreadCount: mode === 'MUTED' ? 0 : r.unreadCount }
+            : r
+        )
+      );
+    } catch (err) {
+      console.error('Failed to update notification settings:', err);
+    }
+  };
+
+  const sidebarRooms = useMemo(
+    () =>
+      joinedRooms.map((room) => ({
+        ...room,
+        unreadCount:
+          room.notificationMode === 'MUTED'
+            ? 0
+            : Math.max(0, (room.unreadCount ?? 0) + (roomUnreadDeltas[room.id] ?? 0)),
+        notificationMode: (room.notificationMode ?? 'ALL') as NotificationMode,
+      })),
+    [joinedRooms, roomUnreadDeltas]
+  );
+
   if (appError) {
     return <ErrorPage error={appError} onClearError={() => setAppError(null)} />;
   }
@@ -279,7 +338,7 @@ export const ChatLayout: React.FC = () => {
       >
         <Sidebar
           user={currentUser}
-          rooms={joinedRooms}
+          rooms={sidebarRooms}
           activeRoomId={activeRoomId}
           onSelectRoom={handleSelectRoom}
           onOpenCreateRoom={() => setIsCreateModalOpen(true)}
@@ -290,12 +349,16 @@ export const ChatLayout: React.FC = () => {
           onLogout={logout}
           onCloseMobile={() => setIsMobileSidebarOpen(false)}
           friendsRefreshKey={friendsRefreshKey}
+          onUpdateNotificationMode={handleUpdateNotificationMode}
+          onViewProfile={(userId) => setViewingUserId(userId)}
         />
       </div>
 
       {/* Main Chat Area */}
       <main className="flex-1 flex flex-col h-full min-w-0 bg-slate-950">
-        {activeRoom ? (
+        {viewingUserId ? (
+          <UserProfileCard userId={viewingUserId} onClose={() => setViewingUserId(null)} />
+        ) : activeRoom ? (
           <>
             <ChatHeader
               room={activeRoom}
@@ -309,13 +372,19 @@ export const ChatLayout: React.FC = () => {
               isAiTyping={isAiTyping}
               roomOwnerId={activeRoom.createdBy}
               currentUserRole={currentUser.role}
+              members={roomMembers}
+              mentionedMessageIds={mentionedMessageIds}
               onReply={setReplyingTo}
               onDelete={handleDeleteMessage}
+              friends={friendsList}
+              onViewProfile={(userId) => setViewingUserId(userId)}
+              onUnfriend={handleFriendUnfriended}
             />
             <MessageInput
               onSendMessage={handleSendMessage}
               replyingTo={replyingTo}
               onCancelReply={() => setReplyingTo(null)}
+              members={roomMembers}
             />
           </>
         ) : (

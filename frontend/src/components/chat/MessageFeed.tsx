@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef } from 'react';
-import type { Message } from '../../types';
+import type { Message, RoomMember, Friend } from '../../types';
 import { MessageItem } from './MessageItem';
 import { Avatar } from '../ui/Avatar';
 import { MessageSquare, Sparkles } from 'lucide-react';
@@ -12,8 +12,13 @@ interface MessageFeedProps {
   isAiTyping: boolean;
   roomOwnerId?: string;
   currentUserRole?: string;
+  members?: RoomMember[];
+  mentionedMessageIds?: Set<number>;
   onReply?: (message: Message) => void;
   onDelete?: (messageId: number) => void;
+  friends?: Friend[];
+  onViewProfile?: (userId: string) => void;
+  onUnfriend?: (friendId: string) => void;
 }
 
 interface GroupedMessage extends Message {
@@ -43,12 +48,18 @@ export const MessageFeed: React.FC<MessageFeedProps> = ({
   isAiTyping,
   roomOwnerId,
   currentUserRole,
+  members = [],
+  mentionedMessageIds,
   onReply,
   onDelete,
+  friends = [],
+  onViewProfile,
+  onUnfriend,
 }) => {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const grouped = useMemo(() => groupMessages(messages), [messages]);
+  const memberUsernames = useMemo(() => members.map((m) => m.username), [members]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -83,8 +94,13 @@ export const MessageFeed: React.FC<MessageFeedProps> = ({
             isFirstInGroup={msg.isFirstInGroup}
             isLastInGroup={msg.isLastInGroup}
             canDelete={canDelete}
+            memberUsernames={memberUsernames}
+            mentionsMe={mentionedMessageIds?.has(msg.id) ?? false}
             onReply={onReply}
             onDelete={onDelete}
+            friends={friends}
+            onViewProfile={onViewProfile}
+            onUnfriend={onUnfriend}
           />
         );
       })}

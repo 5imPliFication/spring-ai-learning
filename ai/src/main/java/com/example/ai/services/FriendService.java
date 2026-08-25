@@ -110,15 +110,7 @@ public class FriendService {
 
         for (Friend f : list) {
             userRepository.findById(f.getUserId()).ifPresent(sender -> {
-                responses.add(new FriendResponse(
-                        f.getId(),
-                        sender.getId(),
-                        sender.getUsername(),
-                        sender.getDisplayName(),
-                        sender.getAvatarUrl(),
-                        f.getStatus(),
-                        f.getCreatedAt()
-                ));
+                responses.add(toFriendResponseWithSender(f, sender));
             });
         }
         return responses;
@@ -130,15 +122,7 @@ public class FriendService {
 
         for (Friend f : list) {
             userRepository.findById(f.getFriendId()).ifPresent(friendUser -> {
-                responses.add(new FriendResponse(
-                        f.getId(),
-                        friendUser.getId(),
-                        friendUser.getUsername(),
-                        friendUser.getDisplayName(),
-                        friendUser.getAvatarUrl(),
-                        f.getStatus(),
-                        f.getCreatedAt()
-                ));
+                responses.add(toFriendResponseWithSender(f, friendUser));
             });
         }
         return responses;
@@ -211,7 +195,21 @@ public class FriendService {
                 room.getPasswordHash() != null,
                 room.getCreatedBy(),
                 room.getCreatedAt(),
-                room.isPrivate()
+                room.isPrivate(),
+                0,
+                com.example.ai.entity.RoomNotificationSetting.MODE_ALL
+        );
+    }
+
+    private FriendResponse toFriendResponseWithSender(Friend f, User displayUser) {
+        return new FriendResponse(
+                f.getId(),
+                displayUser.getId(),
+                displayUser.getUsername(),
+                displayUser.getDisplayName(),
+                displayUser.getAvatarUrl(),
+                f.getStatus(),
+                f.getCreatedAt()
         );
     }
 }

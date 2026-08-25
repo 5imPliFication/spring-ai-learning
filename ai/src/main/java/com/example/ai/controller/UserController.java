@@ -47,4 +47,9 @@ public class UserController {
     public ResponseEntity<List<UserProfileResponse>> searchUsers(@RequestParam String query) {
         return ResponseEntity.ok(userService.searchUsers(query));
     }
+
+    @GetMapping("/{userId}/profile")
+    public ResponseEntity<UserProfileResponse> getPublicProfile(@PathVariable String userId) {
+        return ResponseEntity.ok(userService.getPublicProfile(userId));
+    }
 }

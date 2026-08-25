@@ -8,9 +8,12 @@ import com.example.ai.dto.UpdateRoomRequest;
 import com.example.ai.entity.Room;
 import com.example.ai.entity.RoomMember;
 import com.example.ai.entity.RoomMessage;
+import com.example.ai.entity.RoomNotificationSetting;
 import com.example.ai.entity.User;
+import com.example.ai.repository.MessageMentionRepository;
 import com.example.ai.repository.RoomMemberRepository;
 import com.example.ai.repository.RoomMessageRepository;
+import com.example.ai.repository.RoomNotificationSettingRepository;
 import com.example.ai.repository.RoomRepository;
 import com.example.ai.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -22,6 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -37,6 +41,8 @@ public class RoomService {
     private final RoomRepository roomRepository;
     private final RoomMemberRepository roomMemberRepository;
     private final RoomMessageRepository roomMessageRepository;
+    private final RoomNotificationSettingRepository notificationSettingRepository;
+    private final MessageMentionRepository messageMentionRepository;
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final NotificationService notificationService;
@@ -82,8 +88,13 @@ public class RoomService {
         roomRepository.findByCreatedByAndDeletedAtIsNullOrderByCreatedAtDesc(userId)
                 .forEach(r -> rooms.putIfAbsent(r.getId(), r));
 
+        Map<String, RoomNotificationSetting> settingsByRoom = new HashMap<>();
+        notificationSettingRepository.findByUserId(userId).stream()
+                .filter(s -> rooms.containsKey(s.getRoomId()))
+                .forEach(s -> settingsByRoom.put(s.getRoomId(), s));
+
         return rooms.values().stream()
-                .map(this::toRoomResponse)
+                .map(room -> toRoomResponse(room, userId, settingsByRoom.get(room.getId())))
                 .toList();
     }
 
@@ -356,7 +367,38 @@ public class RoomService {
                 r.getPasswordHash() != null,
                 r.getCreatedBy(),
                 r.getCreatedAt(),
-                r.isPrivate()
+                r.isPrivate(),
+                0,
+                RoomNotificationSetting.MODE_ALL
         );
+    }
+
+    private RoomResponse toRoomResponse(Room r, String userId, RoomNotificationSetting setting) {
+        String mode = setting != null ? setting.getMode() : RoomNotificationSetting.MODE_ALL;
+        long unread = computeUnreadCount(r.getId(), userId, mode, setting);
+        return new RoomResponse(
+                r.getId(),
+                r.getName(),
+                r.getType(),
+                r.getPasswordHash() != null,
+                r.getCreatedBy(),
+                r.getCreatedAt(),
+                r.isPrivate(),
+                unread,
+                mode
+        );
+    }
+
+    private long computeUnreadCount(String roomId, String userId, String mode, RoomNotificationSetting setting) {
+        if (RoomNotificationSetting.MODE_MUTED.equals(mode)) return 0;
+
+        Instant since = setting != null && setting.getLastReadAt() != null
+                ? setting.getLastReadAt()
+                : Instant.EPOCH;
+
+        if (RoomNotificationSetting.MODE_MENTIONS_ONLY.equals(mode)) {
+            return messageMentionRepository.countUnreadMentions(userId, roomId, since);
+        }
+        return notificationSettingRepository.countUnreadMessages(userId, roomId, since);
     }
 }

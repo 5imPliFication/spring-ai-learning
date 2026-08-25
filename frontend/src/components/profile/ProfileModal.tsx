@@ -1,7 +1,7 @@
-import React, { useRef, useState } from 'react';
-import type { User } from '../../types';
+import React, { useRef, useState, useEffect } from 'react';
+import type { User, UserProfileLink } from '../../types';
 import { userApi } from '../../services/api';
-import { X, User as UserIcon, Lock, Trash2, Check, Loader2, Camera, Upload } from 'lucide-react';
+import { X, User as UserIcon, Lock, Trash2, Check, Loader2, Camera, Upload, Plus, Trash, Link2 } from 'lucide-react';
 import { Avatar } from '../ui/Avatar';
 
 interface ProfileModalProps {
@@ -38,6 +38,25 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const avatarInputRef = useRef<HTMLInputElement>(null);
 
+  // Profile field state
+  const [bio, setBio] = useState(user.bio ?? '');
+  const [location, setLocation] = useState(user.location ?? '');
+  const [gender, setGender] = useState(user.gender ?? '');
+  const [phone, setPhone] = useState(user.phone ?? '');
+  const [links, setLinks] = useState<UserProfileLink[]>(user.links ?? []);
+  const [showBio, setShowBio] = useState(user.showBio ?? true);
+  const [showLocation, setShowLocation] = useState(user.showLocation ?? true);
+  const [showGender, setShowGender] = useState(user.showGender ?? true);
+  const [showPhone, setShowPhone] = useState(user.showPhone ?? true);
+  const [showLinks, setShowLinks] = useState(user.showLinks ?? true);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleEsc = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', handleEsc);
+    return () => window.removeEventListener('keydown', handleEsc);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   const handleUpdate = async (e: React.FormEvent) => {
@@ -51,6 +70,16 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
         displayName: displayName.trim(),
         currentPassword: currentPassword ? currentPassword : undefined,
         newPassword: newPassword ? newPassword : undefined,
+        bio: bio.trim() || null,
+        location: location.trim() || null,
+        gender: gender.trim() || null,
+        phone: phone.trim() || null,
+        links: links.filter((l) => l.label.trim() && l.url.trim()),
+        showBio,
+        showLocation,
+        showGender,
+        showPhone,
+        showLinks,
       });
 
       onProfileUpdated(updated);
@@ -136,11 +165,24 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
     }
   };
 
+  const addLink = () => {
+    if (links.length >= 5) return;
+    setLinks([...links, { label: '', url: '', position: links.length }]);
+  };
+
+  const removeLink = (idx: number) => {
+    setLinks(links.filter((_, i) => i !== idx));
+  };
+
+  const updateLink = (idx: number, field: 'label' | 'url', value: string) => {
+    setLinks(links.map((l, i) => (i === idx ? { ...l, [field]: value } : l)));
+  };
+
   const currentAvatar = avatarPreview ?? user.avatarUrl ?? '';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm">
-      <div className="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm" onClick={onClose}>
+      <div className="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <button
           onClick={onClose}
           className="absolute top-5 right-5 text-slate-400 hover:text-white p-1 rounded-xl hover:bg-slate-800 transition-colors"
@@ -241,6 +283,142 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
             <p className="text-[10px] text-slate-500 mt-1.5">
               JPEG, PNG or GIF. Between {MIN_AVATAR_DIM}x{MIN_AVATAR_DIM} and {MAX_AVATAR_DIM}x{MAX_AVATAR_DIM} pixels, max 5MB.
             </p>
+          </div>
+
+          <hr className="border-slate-800 my-4" />
+
+          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">About</h3>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-400 mb-1">Bio</label>
+            <textarea
+              value={bio}
+              onChange={(e) => setBio(e.target.value)}
+              maxLength={500}
+              rows={3}
+              placeholder="Tell others about yourself"
+              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 resize-none"
+            />
+            <p className="text-[10px] text-slate-500 text-right mt-1">{bio.length}/500</p>
+          </div>
+
+          <hr className="border-slate-800 my-4" />
+
+          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Details</h3>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-slate-400 mb-1">Location</label>
+              <input
+                type="text"
+                value={location}
+                onChange={(e) => setLocation(e.target.value)}
+                maxLength={100}
+                placeholder="City, country"
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-400 mb-1">Gender</label>
+              <input
+                type="text"
+                value={gender}
+                onChange={(e) => setGender(e.target.value)}
+                maxLength={50}
+                placeholder="Optional"
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-400 mb-1">Phone</label>
+            <input
+              type="tel"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              maxLength={20}
+              placeholder="Optional"
+              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
+            />
+          </div>
+
+          <hr className="border-slate-800 my-4" />
+
+          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Links</h3>
+
+          <div className="space-y-2">
+            {links.map((link, idx) => (
+              <div key={idx} className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={link.label}
+                  onChange={(e) => updateLink(idx, 'label', e.target.value)}
+                  placeholder="Label"
+                  className="w-1/3 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                />
+                <div className="relative flex-1">
+                  <Link2 className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-2.5" />
+                  <input
+                    type="url"
+                    value={link.url}
+                    onChange={(e) => updateLink(idx, 'url', e.target.value)}
+                    placeholder="https://..."
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => removeLink(idx)}
+                  className="p-2 text-slate-500 hover:text-red-400 transition-colors"
+                >
+                  <Trash className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ))}
+            {links.length < 5 && (
+              <button
+                type="button"
+                onClick={addLink}
+                className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-blue-400 transition-colors py-1"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Add link ({links.length}/5)</span>
+              </button>
+            )}
+          </div>
+
+          <hr className="border-slate-800 my-4" />
+
+          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">Privacy</h3>
+
+          <div className="space-y-2">
+            {([
+              [showBio, setShowBio, 'Bio'],
+              [showLocation, setShowLocation, 'Location'],
+              [showGender, setShowGender, 'Gender'],
+              [showPhone, setShowPhone, 'Phone number'],
+              [showLinks, setShowLinks, 'Links'],
+            ] as const).map(([value, setter, label]) => (
+              <label key={label} className="flex items-center justify-between py-1 cursor-pointer">
+                <span className="text-sm text-slate-300">{label}</span>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={value}
+                  onClick={() => setter(!value)}
+                  className={`relative inline-flex h-5 w-8 items-center rounded-full transition-colors ${
+                    value ? 'bg-blue-600' : 'bg-slate-700'
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                      value ? 'translate-x-4' : 'translate-x-0.5'
+                    }`}
+                  />
+                </button>
+              </label>
+            ))}
           </div>
 
           <hr className="border-slate-800 my-4" />

@@ -7,7 +7,9 @@ import com.example.ai.dto.MessageResponse;
 import com.example.ai.dto.RoomMemberResponse;
 import com.example.ai.dto.RoomResponse;
 import com.example.ai.dto.UpdateRoomRequest;
+import com.example.ai.dto.UpdateNotificationSettingsRequest;
 import com.example.ai.entity.User;
+import com.example.ai.services.RoomNotificationSettingsService;
 import com.example.ai.services.RoomService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -25,6 +27,7 @@ import java.util.Map;
 public class RoomController {
 
     private final RoomService roomService;
+    private final RoomNotificationSettingsService notificationSettingsService;
     private final SimpMessagingTemplate messagingTemplate;
 
     @GetMapping
@@ -109,5 +112,26 @@ public class RoomController {
         roomService.deleteMessage(roomId, messageId, user);
         messagingTemplate.convertAndSend("/topic/room/" + roomId, ChatMessage.delete(messageId));
         return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/{roomId}/notification-settings")
+    public ResponseEntity<Map<String, String>> getNotificationSettings(@PathVariable String roomId,
+                                                                       @AuthenticationPrincipal User user) {
+        return ResponseEntity.ok(Map.of("mode", notificationSettingsService.getMode(user.getId(), roomId)));
+    }
+
+    @PutMapping("/{roomId}/notification-settings")
+    public ResponseEntity<Void> updateNotificationSettings(@PathVariable String roomId,
+                                                           @Valid @RequestBody UpdateNotificationSettingsRequest request,
+                                                           @AuthenticationPrincipal User user) {
+        notificationSettingsService.setMode(user.getId(), roomId, request.mode());
+        return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/{roomId}/read")
+    public ResponseEntity<Void> markRoomRead(@PathVariable String roomId,
+                                             @AuthenticationPrincipal User user) {
+        notificationSettingsService.markRoomRead(user.getId(), roomId);
+        return ResponseEntity.ok().build();
     }
 }
