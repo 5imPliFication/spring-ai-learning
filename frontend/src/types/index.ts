@@ -17,6 +17,7 @@ export interface User {
   location?: string;
   gender?: string;
   phone?: string;
+  email?: string;
   links?: UserProfileLink[];
   showBio?: boolean;
   showLocation?: boolean;
@@ -31,6 +32,7 @@ export interface AuthResponse {
   username: string;
   displayName: string;
   role: string;
+  email: string;
 }
 
 export type NotificationMode = 'ALL' | 'MENTIONS_ONLY' | 'MUTED';
@@ -47,18 +49,31 @@ export interface Room {
   notificationMode?: NotificationMode;
 }
 
+export interface CalendarActionCard {
+  actionId: string;
+  userId: string;
+  calendarId: string;
+  summary: string;
+  startTime: string;
+  endTime: string;
+  description?: string | null;
+  location?: string | null;
+  status: 'PENDING' | 'APPROVED' | 'DECLINED';
+}
+
 export interface Message {
   id: number;
   senderId: string;
   senderName: string;
   content: string;
-  messageType: 'TEXT' | 'IMAGE' | 'FILE' | 'AUDIO';
+  messageType: 'TEXT' | 'IMAGE' | 'FILE' | 'AUDIO' | 'ACTION_CARD';
   mediaUrl?: string;
   createdAt: string;
   replyToId?: number;
   replyToSenderName?: string;
   replyToContent?: string;
   deleted?: boolean;
+  actionCard?: CalendarActionCard;
 }
 
 export interface ChatMessagePayload {
@@ -73,6 +88,7 @@ export interface ChatMessagePayload {
   messageId?: number;
   deleted?: boolean;
   mentionedUserIds?: string[];
+  actionCard?: CalendarActionCard;
 }
 
 export interface Friend {
@@ -137,12 +153,18 @@ export interface UpdateProfileRequest {
   location?: string | null;
   gender?: string | null;
   phone?: string | null;
+  email?: string | null;
   links?: { label: string; url: string }[];
   showBio?: boolean;
   showLocation?: boolean;
   showGender?: boolean;
   showPhone?: boolean;
   showLinks?: boolean;
+}
+
+export interface OAuthStatusResponse {
+  connected: boolean;
+  googleEmail?: string | null;
 }
 
 export interface AppNotification {

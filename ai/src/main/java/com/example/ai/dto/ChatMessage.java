@@ -7,20 +7,21 @@ public record ChatMessage(
     String senderId,
     String senderName,
     String content,
-    String messageType,  // TEXT, IMAGE, FILE, AUDIO
+    String messageType,  // TEXT, IMAGE, FILE, AUDIO, ACTION_CARD
     String mediaUrl,
     String type,         // CHAT, TYPING, IDLE, DELETE
     Instant timestamp,
     Long replyToId,
     Long messageId,
-    List<String> mentionedUserIds
+    List<String> mentionedUserIds,
+    CalendarActionCard actionCard
 ) {
     public static ChatMessage chat(Long messageId, String senderId, String senderName, String content) {
-        return new ChatMessage(senderId, senderName, content, "TEXT", null, "CHAT", Instant.now(), null, messageId, null);
+        return new ChatMessage(senderId, senderName, content, "TEXT", null, "CHAT", Instant.now(), null, messageId, null, null);
     }
 
     public static ChatMessage chatReply(Long messageId, String senderId, String senderName, String content, Long replyToId) {
-        return new ChatMessage(senderId, senderName, content, "TEXT", null, "CHAT", Instant.now(), replyToId, messageId, null);
+        return new ChatMessage(senderId, senderName, content, "TEXT", null, "CHAT", Instant.now(), replyToId, messageId, null, null);
     }
 
     public static ChatMessage chatMedia(Long messageId, String senderId, String senderName, String content,
@@ -32,18 +33,24 @@ public record ChatMessage(
                                         String messageType, String mediaUrl, Long replyToId,
                                         List<String> mentionedUserIds) {
         return new ChatMessage(senderId, senderName, content, messageType, mediaUrl, "CHAT", Instant.now(),
-                replyToId, messageId, mentionedUserIds);
+                replyToId, messageId, mentionedUserIds, null);
+    }
+
+    public static ChatMessage chatActionCard(Long messageId, String senderId, String senderName,
+                                             String content, CalendarActionCard actionCard) {
+        return new ChatMessage(senderId, senderName, content, "ACTION_CARD", null, "CHAT", Instant.now(),
+                null, messageId, null, actionCard);
     }
 
     public static ChatMessage typing(String senderId, String senderName) {
-        return new ChatMessage(senderId, senderName, null, null, null, "TYPING", Instant.now(), null, null, null);
+        return new ChatMessage(senderId, senderName, null, null, null, "TYPING", Instant.now(), null, null, null, null);
     }
 
     public static ChatMessage idle(String senderId, String senderName) {
-        return new ChatMessage(senderId, senderName, null, null, null, "IDLE", Instant.now(), null, null, null);
+        return new ChatMessage(senderId, senderName, null, null, null, "IDLE", Instant.now(), null, null, null, null);
     }
 
     public static ChatMessage delete(Long messageId) {
-        return new ChatMessage(null, null, null, null, null, "DELETE", Instant.now(), null, messageId, null);
+        return new ChatMessage(null, null, null, null, null, "DELETE", Instant.now(), null, messageId, null, null);
     }
 }

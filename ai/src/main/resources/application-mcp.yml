@@ -1,0 +1,10 @@
+spring:
+  ai:
+    mcp:
+      client:
+        stdio:
+          connections:
+            google-calendar:
+              command: /home/simpi/go/bin/google-mcp-server
+              args: []
+              env: {}

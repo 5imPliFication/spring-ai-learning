@@ -118,15 +118,27 @@ public class ChatWebSocketController {
                     messagingTemplate.convertAndSend("/topic/room/" + roomId,
                             ChatMessage.typing("ai-bot", aiName));
 
-                    ChatResponse chatResponse = azuraService.generateResponse(roomId);
+                    ChatResponse chatResponse = azuraService.generateResponse(roomId, requesterId);
                     String responseText = chatResponse != null && chatResponse.getResult() != null
                             ? chatResponse.getResult().getOutput().getText()
-                            : "Sorry, I couldn't generate a response.";
+                            : null;
 
-                    RoomMessage aiMsg = azuraService.saveAzuraMessage(roomId, responseText, chatResponse);
+                    AzuraService.ProcessedAiResponse processed = azuraService.processActionToken(responseText, requesterId);
+                    String content = processed.content();
+                    if (content == null || content.isBlank()) {
+                        content = processed.actionCard() != null
+                                ? "A calendar action is waiting for your approval."
+                                : "Sorry, I couldn't generate a response. Please try again.";
+                    }
+
+                    RoomMessage aiMsg = azuraService.saveAzuraMessage(
+                            roomId, content, chatResponse, processed.actionCard());
 
                     messagingTemplate.convertAndSend("/topic/room/" + roomId,
-                            ChatMessage.chat(aiMsg.getId(), "ai-bot", aiName, responseText));
+                            processed.actionCard() != null
+                                    ? ChatMessage.chatActionCard(aiMsg.getId(), "ai-bot", aiName,
+                                            content, processed.actionCard())
+                                    : ChatMessage.chat(aiMsg.getId(), "ai-bot", aiName, content));
 
                     messagingTemplate.convertAndSend("/topic/room/" + roomId,
                             ChatMessage.idle("ai-bot", aiName));
@@ -134,9 +146,9 @@ public class ChatWebSocketController {
                     if (requesterId != null && !requesterId.isBlank()
                             && !roomPresenceTracker.isViewing(requesterId, roomId)
                             && notificationSettingsService.shouldNotify(requesterId, roomId, false)) {
-                        String snippet = responseText.length() > 120
-                                ? responseText.substring(0, 120) + "…"
-                                : responseText;
+                        String snippet = processed.content().length() > 120
+                                ? processed.content().substring(0, 120) + "…"
+                                : processed.content();
                         notificationService.create(
                                 requesterId,
                                 "AI_REPLY",

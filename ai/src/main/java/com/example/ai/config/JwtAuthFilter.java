@@ -37,6 +37,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                         .username(jwtUtil.extractUsername(token))
                         .displayName(jwtUtil.extractDisplayName(token))
                         .role(jwtUtil.extractRole(token))
+                        .email(jwtUtil.extractEmail(token))
                         .build();
 
                 userActivityService.recordActivity(user.getId());

@@ -16,6 +16,7 @@ public record UserProfileResponse(
     String location,
     String gender,
     String phone,
+    String email,
     List<UserLinkResponse> links
 ) {
     public record UserLinkResponse(

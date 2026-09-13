@@ -58,6 +58,7 @@ public class JwtWebSocketAuthInterceptor implements ChannelInterceptor {
                 .username(jwtUtil.extractUsername(token))
                 .displayName(jwtUtil.extractDisplayName(token))
                 .role(jwtUtil.extractRole(token))
+                .email(jwtUtil.extractEmail(token))
                 .build();
 
         var authentication = new UsernamePasswordAuthenticationToken(

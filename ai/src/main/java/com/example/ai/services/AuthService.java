@@ -25,18 +25,24 @@ public class AuthService {
             throw new IllegalArgumentException("Username already taken");
         }
 
+        String normalizedEmail = request.email().trim().toLowerCase();
+        if (userRepository.existsByEmail(normalizedEmail)) {
+            throw new IllegalArgumentException("Email already registered");
+        }
+
         User user = User.builder()
                 .id(UUID.randomUUID().toString())
                 .username(request.username())
                 .password(passwordEncoder.encode(request.password()))
                 .displayName(request.displayName())
+                .email(normalizedEmail)
                 .role("USER")
                 .build();
 
         userRepository.save(user);
 
         String token = jwtUtil.generateToken(user);
-        return new AuthResponse(token, user.getId(), user.getUsername(), user.getDisplayName(), user.getRole());
+        return new AuthResponse(token, user.getId(), user.getUsername(), user.getDisplayName(), user.getRole(), user.getEmail());
     }
 
     public AuthResponse login(LoginRequest request) {
@@ -48,6 +54,6 @@ public class AuthService {
         }
 
         String token = jwtUtil.generateToken(user);
-        return new AuthResponse(token, user.getId(), user.getUsername(), user.getDisplayName(), user.getRole());
+        return new AuthResponse(token, user.getId(), user.getUsername(), user.getDisplayName(), user.getRole(), user.getEmail());
     }
 }

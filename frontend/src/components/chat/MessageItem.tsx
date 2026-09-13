@@ -3,6 +3,7 @@ import type { Message, Friend } from '../../types';
 import { Avatar } from '../ui/Avatar';
 import { Sparkles, CornerUpLeft, Trash2, FileText, Download } from 'lucide-react';
 import { FriendContextMenu } from '../friends/FriendContextMenu';
+import { ActionCard } from './ActionCard';
 
 interface MessageItemProps {
   message: Message;
@@ -12,6 +13,7 @@ interface MessageItemProps {
   canDelete?: boolean;
   memberUsernames?: string[];
   mentionsMe?: boolean;
+  currentUserId?: string;
   onReply?: (message: Message) => void;
   onDelete?: (messageId: number) => void;
   friends?: Friend[];
@@ -135,9 +137,9 @@ export const MessageItem: React.FC<MessageItemProps> = ({
   canDelete = false,
   memberUsernames = [],
   mentionsMe = false,
+  currentUserId,
   onReply,
   onDelete,
-  friends = [],
   onViewProfile,
   onUnfriend,
 }) => {
@@ -275,6 +277,16 @@ export const MessageItem: React.FC<MessageItemProps> = ({
             {message.content && (
               <div className="whitespace-pre-wrap mt-1.5">
                 <MentionText content={message.content} usernames={memberUsernames} />
+              </div>
+            )}
+            {message.actionCard && (
+              <div className="mt-3">
+                <ActionCard card={message.actionCard} currentUserId={currentUserId || ''} />
+              </div>
+            )}
+            {message.messageType === 'ACTION_CARD' && !message.actionCard && (
+              <div className="mt-1.5 text-xs text-slate-500 italic">
+                This calendar action has already expired or been resolved.
               </div>
             )}
           </div>

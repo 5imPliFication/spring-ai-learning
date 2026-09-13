@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { Sparkles, User as UserIcon, Lock, Smile, ArrowRight, AlertCircle, Loader2 } from 'lucide-react';
+import { Sparkles, User as UserIcon, Lock, Smile, Mail, ArrowRight, AlertCircle, Loader2 } from 'lucide-react';
 
 export const AuthModal: React.FC = () => {
   const [isLogin, setIsLogin] = useState(true);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
+  const [email, setEmail] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -24,7 +25,10 @@ export const AuthModal: React.FC = () => {
         if (!displayName.trim()) {
           throw new Error('Please enter a display name');
         }
-        await register(username, password, displayName);
+        if (!email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+          throw new Error('Please enter a valid email');
+        }
+        await register(username, password, displayName, email.trim());
       }
     } catch (err: any) {
       console.error('Auth error:', err);
@@ -112,6 +116,25 @@ export const AuthModal: React.FC = () => {
                   value={displayName}
                   onChange={(e) => setDisplayName(e.target.value)}
                   placeholder="How others will see you"
+                  className="w-full bg-slate-950/80 border border-slate-800 rounded-xl pl-10 pr-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-colors"
+                />
+              </div>
+            </div>
+          )}
+
+          {!isLogin && (
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">
+                Email
+              </label>
+              <div className="relative">
+                <Mail className="w-4 h-4 text-slate-500 absolute left-3.5 top-3.5" />
+                <input
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="you@example.com"
                   className="w-full bg-slate-950/80 border border-slate-800 rounded-xl pl-10 pr-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-colors"
                 />
               </div>

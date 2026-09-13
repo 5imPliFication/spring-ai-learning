@@ -9,7 +9,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (username: string, password: string) => Promise<void>;
-  register: (username: string, password: string, displayName: string) => Promise<void>;
+  register: (username: string, password: string, displayName: string, email: string) => Promise<void>;
   logout: () => void;
 }
 
@@ -61,6 +61,7 @@ wsService.connect(savedToken);
       username: res.username,
       displayName: res.displayName,
       role: res.role as User['role'],
+      email: res.email,
     };
     setToken(res.token);
     setUser(authUser);
@@ -76,8 +77,8 @@ wsService.connect(savedToken);
     handleAuthSuccess(res);
   };
 
-  const register = async (username: string, password: string, displayName: string) => {
-    const res = await authApi.register(username, password, displayName);
+  const register = async (username: string, password: string, displayName: string, email: string) => {
+    const res = await authApi.register(username, password, displayName, email);
     handleAuthSuccess(res);
   };
 

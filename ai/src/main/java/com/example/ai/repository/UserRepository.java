@@ -15,6 +15,7 @@ public interface UserRepository extends JpaRepository<User, String> {
     Optional<User> findByUsername(String username);
     Optional<User> findByUsernameAndDeletedAtIsNull(String username);
     boolean existsByUsername(String username);
+    boolean existsByEmail(String email);
 
     @Query("SELECT u FROM User u WHERE u.deletedAt IS NULL AND (LOWER(u.username) LIKE LOWER(CONCAT('%', :query, '%')) OR LOWER(u.displayName) LIKE LOWER(CONCAT('%', :query, '%')))")
     List<User> searchUsers(@Param("query") String query);

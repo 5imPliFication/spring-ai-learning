@@ -1,7 +1,7 @@
 import React, { useRef, useState, useEffect } from 'react';
-import type { User, UserProfileLink } from '../../types';
-import { userApi } from '../../services/api';
-import { X, User as UserIcon, Lock, Trash2, Check, Loader2, Camera, Upload, Plus, Trash, Link2 } from 'lucide-react';
+import type { User, UserProfileLink, OAuthStatusResponse } from '../../types';
+import { userApi, oauthApi } from '../../services/api';
+import { X, User as UserIcon, Lock, Trash2, Check, Loader2, Camera, Upload, Plus, Trash, Link2, Calendar } from 'lucide-react';
 import { Avatar } from '../ui/Avatar';
 
 interface ProfileModalProps {
@@ -10,6 +10,7 @@ interface ProfileModalProps {
   onClose: () => void;
   onProfileUpdated: (user: User) => void;
   onLogout: () => void;
+  oauthResult?: { success: boolean; message?: string } | null;
 }
 
 const MAX_AVATAR_SIZE = 5 * 1024 * 1024;
@@ -23,6 +24,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   onClose,
   onProfileUpdated,
   onLogout,
+  oauthResult,
 }) => {
   const [displayName, setDisplayName] = useState(user.displayName);
   const [currentPassword, setCurrentPassword] = useState('');
@@ -50,12 +52,26 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   const [showPhone, setShowPhone] = useState(user.showPhone ?? true);
   const [showLinks, setShowLinks] = useState(user.showLinks ?? true);
 
+  // Google Calendar (OAuth) state
+  const [oauthStatus, setOauthStatus] = useState<OAuthStatusResponse | null>(null);
+  const [isOAuthBusy, setIsOAuthBusy] = useState(false);
+
   useEffect(() => {
     if (!isOpen) return;
     const handleEsc = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     window.addEventListener('keydown', handleEsc);
     return () => window.removeEventListener('keydown', handleEsc);
   }, [isOpen, onClose]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancelled = false;
+    setOauthStatus(null);
+    oauthApi.getStatus()
+      .then((s) => { if (!cancelled) setOauthStatus(s); })
+      .catch(() => { if (!cancelled) setOauthStatus({ connected: false, googleEmail: null }); });
+    return () => { cancelled = true; };
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -165,6 +181,35 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
     }
   };
 
+  const handleConnectOAuth = async () => {
+    setErrorMsg(null);
+    setSuccessMsg(null);
+    setIsOAuthBusy(true);
+    try {
+      const authUrl = await oauthApi.getConnectUrl();
+      window.location.href = authUrl;
+    } catch (err: any) {
+      setErrorMsg(err.response?.data?.message || err.message || 'Failed to start Google sign-in');
+    } finally {
+      setIsOAuthBusy(false);
+    }
+  };
+
+  const handleDisconnectOAuth = async () => {
+    setErrorMsg(null);
+    setSuccessMsg(null);
+    setIsOAuthBusy(true);
+    try {
+      await oauthApi.disconnect();
+      setOauthStatus({ connected: false, googleEmail: null });
+      setSuccessMsg('Google Calendar disconnected');
+    } catch (err: any) {
+      setErrorMsg(err.response?.data?.message || err.message || 'Failed to disconnect Google account');
+    } finally {
+      setIsOAuthBusy(false);
+    }
+  };
+
   const addLink = () => {
     if (links.length >= 5) return;
     setLinks([...links, { label: '', url: '', position: links.length }]);
@@ -202,6 +247,15 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
             )}
           </div>
         </div>
+
+        {oauthResult && (
+          <div className={`mb-4 p-3 rounded-xl border text-xs flex items-center gap-2 ${
+            oauthResult.success ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-red-500/10 border-red-500/20 text-red-400'
+          }`}>
+            {oauthResult.success ? <Check className="w-4 h-4 shrink-0" /> : <X className="w-4 h-4 shrink-0" />}
+            <span>{oauthResult.message ?? (oauthResult.success ? 'Google Calendar connected successfully.' : 'Could not connect Google Calendar.')}</span>
+          </div>
+        )}
 
         {successMsg && (
           <div className="mb-4 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs flex items-center gap-2">
@@ -463,6 +517,51 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
             </button>
           </div>
         </form>
+
+        <hr className="border-slate-800 my-6" />
+
+        <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Integrations</h3>
+
+        <div className="bg-slate-950 border border-slate-800 rounded-xl p-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/20 shrink-0">
+              <Calendar className="w-4 h-4" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-white">Google Calendar</p>
+              {oauthStatus?.connected ? (
+                <p className="text-xs text-slate-400 mt-0.5 break-all">
+                  Connected to <span className="text-emerald-400">{oauthStatus.googleEmail}</span>
+                </p>
+              ) : (
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Let Azura check and create events on your calendar.
+                </p>
+              )}
+            </div>
+            <div className="shrink-0">
+              {oauthStatus?.connected ? (
+                <button
+                  type="button"
+                  onClick={handleDisconnectOAuth}
+                  disabled={isOAuthBusy}
+                  className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl transition-colors disabled:opacity-50"
+                >
+                  {isOAuthBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Disconnect'}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleConnectOAuth}
+                  disabled={isOAuthBusy}
+                  className="px-3 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold rounded-xl transition-colors disabled:opacity-50 flex items-center gap-1.5"
+                >
+                  {isOAuthBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <><Link2 className="w-3.5 h-3.5" /> Connect</>}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
 
         <hr className="border-slate-800 my-6" />
 

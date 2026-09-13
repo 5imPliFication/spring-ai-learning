@@ -25,6 +25,9 @@ public class User {
     @Column(name = "display_name", nullable = false, length = 100)
     private String displayName;
 
+    @Column(length = 254)
+    private String email;
+
     @Column(name = "avatar_url", length = 500)
     private String avatarUrl;
 

@@ -12,8 +12,10 @@ import type {
   AppNotification,
   NotificationMode,
   NotificationSettingsResponse,
+  OAuthStatusResponse,
   PresignedUploadRequest,
   PresignedUploadResponse,
+  CalendarActionCard,
 } from '../types';
 
 const API_BASE_URL = '/api/v1';
@@ -75,8 +77,8 @@ export const authApi = {
     return res.data;
   },
 
-  register: async (username: string, password: string, displayName: string): Promise<AuthResponse> => {
-    const res = await apiClient.post<AuthResponse>('/auth/register', { username, password, displayName });
+  register: async (username: string, password: string, displayName: string, email: string): Promise<AuthResponse> => {
+    const res = await apiClient.post<AuthResponse>('/auth/register', { username, password, displayName, email });
     return res.data;
   },
 };
@@ -259,6 +261,39 @@ export const notificationApi = {
 
   markAllRead: async (): Promise<void> => {
     await apiClient.post('/notifications/read-all');
+  },
+};
+
+export const oauthApi = {
+  getConnectUrl: async (): Promise<string> => {
+    const res = await apiClient.get<{ authUrl: string }>('/oauth/google/connect');
+    return res.data.authUrl;
+  },
+
+  getStatus: async (): Promise<OAuthStatusResponse> => {
+    const res = await apiClient.get<OAuthStatusResponse>('/oauth/google/status');
+    return res.data;
+  },
+
+  disconnect: async (): Promise<void> => {
+    await apiClient.delete('/oauth/google');
+  },
+};
+
+export const calendarActionApi = {
+  getAction: async (actionId: string): Promise<CalendarActionCard> => {
+    const res = await apiClient.get<CalendarActionCard>(`/calendar/actions/${actionId}`);
+    return res.data;
+  },
+
+  confirm: async (actionId: string): Promise<{ status: string; message: string }> => {
+    const res = await apiClient.post<{ status: string; message: string }>(`/calendar/actions/${actionId}/confirm`);
+    return res.data;
+  },
+
+  decline: async (actionId: string): Promise<{ status: string; message: string }> => {
+    const res = await apiClient.post<{ status: string; message: string }>(`/calendar/actions/${actionId}/decline`);
+    return res.data;
   },
 };
 

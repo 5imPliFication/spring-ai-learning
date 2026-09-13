@@ -96,6 +96,7 @@ export const MessageFeed: React.FC<MessageFeedProps> = ({
             canDelete={canDelete}
             memberUsernames={memberUsernames}
             mentionsMe={mentionedMessageIds?.has(msg.id) ?? false}
+            currentUserId={currentUserId}
             onReply={onReply}
             onDelete={onDelete}
             friends={friends}

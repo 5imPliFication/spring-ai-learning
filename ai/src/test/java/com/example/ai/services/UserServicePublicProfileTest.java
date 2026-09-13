@@ -144,11 +144,83 @@ class UserServicePublicProfileTest {
     }
 
     @Test
+    void publicProfileHidesEmailAlways() {
+        User user = baseUser();
+        user.setEmail("alice@example.com");
+        when(userRepository.findById("user-1")).thenReturn(Optional.of(user));
+
+        UserProfileResponse res = userService.getPublicProfile("user-1");
+        assertThat(res.email()).isNull();
+    }
+
+    @Test
+    void selfProfileShowsEmail() {
+        User user = baseUser();
+        user.setEmail("alice@example.com");
+        when(userRepository.findById("user-1")).thenReturn(Optional.of(user));
+
+        UserProfileResponse res = userService.getProfile(user);
+        assertThat(res.email()).isEqualTo("alice@example.com");
+    }
+
+    @Test
+    void updateProfileSetsEmailAndNormalizes() {
+        User user = baseUser();
+        when(userRepository.findById("user-1")).thenReturn(Optional.of(user));
+
+        UpdateProfileRequest req = new UpdateProfileRequest(
+                null, null, null, null,
+                null, null, null, null, "  Alice@Example.COM ",
+                null,
+                null, null, null, null, null
+        );
+
+        UserProfileResponse res = userService.updateProfile(user, req);
+        assertThat(res.email()).isEqualTo("alice@example.com");
+    }
+
+    @Test
+    void updateProfileRejectsDuplicateEmail() {
+        User user = baseUser();
+        User other = baseUser();
+        when(userRepository.findById("user-1")).thenReturn(Optional.of(user));
+        when(userRepository.existsByEmail("taken@example.com")).thenReturn(true);
+
+        UpdateProfileRequest req = new UpdateProfileRequest(
+                null, null, null, null,
+                null, null, null, null, "taken@example.com",
+                null,
+                null, null, null, null, null
+        );
+
+        assertThatThrownBy(() -> userService.updateProfile(user, req))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Email already registered");
+    }
+
+    @Test
+    void updateProfileClearsEmailWhenBlank() {
+        User user = baseUser();
+        user.setEmail("alice@example.com");
+        when(userRepository.findById("user-1")).thenReturn(Optional.of(user));
+
+        UpdateProfileRequest req = new UpdateProfileRequest(
+                null, null, null, null,
+                null, null, null, null, "   ",
+                null,
+                null, null, null, null, null
+        );
+
+        UserProfileResponse res = userService.updateProfile(user, req);
+        assertThat(res.email()).isNull();
+    }
+
+    @Test
     void updateProfileValidatesLinkUrlFormat() {
         User user = baseUser();
         UpdateProfileRequest req = new UpdateProfileRequest(
                 null, null, null, null,
-                null, null, null, null,
+                null, null, null, null, null,
                 List.of(new UpdateProfileRequest.LinkRequest("MySite", "ftp://bad.url")),
                 null, null, null, null, null
         );
@@ -171,7 +243,7 @@ class UserServicePublicProfileTest {
         );
         UpdateProfileRequest req = new UpdateProfileRequest(
                 null, null, null, null,
-                null, null, null, null,
+                null, null, null, null, null,
                 links,
                 null, null, null, null, null
         );
@@ -186,7 +258,7 @@ class UserServicePublicProfileTest {
         User user = baseUser();
         UpdateProfileRequest req = new UpdateProfileRequest(
                 null, null, null, null,
-                "New bio", "London", "Non-binary", "+44-123",
+                "New bio", "London", "Non-binary", "+44-123", null,
                 List.of(),
                 true, true, true, true, true
         );

@@ -64,6 +64,23 @@ export const ChatLayout: React.FC = () => {
   const [appError, setAppError] = useState<AppError | null>(null);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
+  // Google Calendar OAuth redirect result (?oauth=success|error)
+  const [oauthResult, setOauthResult] = useState<{ success: boolean; message?: string } | null>(null);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const oauth = params.get('oauth');
+    if (oauth === 'success') {
+      setOauthResult({ success: true });
+      window.history.replaceState({}, '', window.location.pathname);
+      setIsProfileModalOpen(true);
+    } else if (oauth === 'error') {
+      setOauthResult({ success: false, message: params.get('message') ?? undefined });
+      window.history.replaceState({}, '', window.location.pathname);
+      setIsProfileModalOpen(true);
+    }
+  }, []);
+
   useEffect(() => {
     setCurrentUser(user);
   }, [user]);
@@ -157,6 +174,7 @@ export const ChatLayout: React.FC = () => {
           replyToSenderName: replyMsg?.senderName,
           replyToContent: replyMsg?.deleted ? undefined : (replyMsg?.content || mediaLabel(replyMsg)),
           deleted: false,
+          actionCard: payload.actionCard,
         };
         return [...prev, newMsg];
       });
@@ -447,9 +465,13 @@ export const ChatLayout: React.FC = () => {
       <ProfileModal
         user={currentUser}
         isOpen={isProfileModalOpen}
-        onClose={() => setIsProfileModalOpen(false)}
+        onClose={() => {
+          setIsProfileModalOpen(false);
+          setOauthResult(null);
+        }}
         onProfileUpdated={(updated) => setCurrentUser(updated)}
         onLogout={logout}
+        oauthResult={oauthResult}
       />
 
       <FriendsModal

@@ -30,6 +30,13 @@ app:
     secret: ${JWT-SECRET}
     expiration-ms: 604800000  # 1 week
 
+  oauth:
+    google:
+      client-id: ${OAUTH-CLIENT-ID:}
+      client-secret: ${OAUTH-CLIENT-SECRET:}
+      redirect-uri: ${OAUTH-REDIRECT-URI:http://localhost:8080/api/v1/oauth/google/callback}
+      scopes: openid email https://www.googleapis.com/auth/calendar
+
   frontend:
     base-url: http://localhost:5173
 
@@ -48,7 +55,7 @@ app:
     system-prompt: >
       You are a helpful and friendly AI assistant participating in a group chat.
       When users ask for your opinion or help, give them a direct, honest answer.
-    max-tokens: 256
+    max-tokens: 512
     context-messages: 20
 
   notification:

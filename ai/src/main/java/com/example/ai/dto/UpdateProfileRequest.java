@@ -1,5 +1,6 @@
 package com.example.ai.dto;
 
+import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.Size;
 import java.util.List;
 
@@ -13,6 +14,7 @@ public record UpdateProfileRequest(
     @Size(max = 100) String location,
     @Size(max = 50) String gender,
     @Size(max = 20) String phone,
+    @Email @Size(max = 254) String email,
     List<LinkRequest> links,
     // Visibility toggles
     Boolean showBio,

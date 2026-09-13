@@ -63,6 +63,18 @@ public class UserService {
         user.setGender(request.gender() != null ? request.gender().trim() : null);
         user.setPhone(request.phone() != null ? request.phone().trim() : null);
 
+        if (request.email() != null) {
+            String normalizedEmail = request.email().trim().toLowerCase();
+            if (normalizedEmail.isEmpty()) {
+                user.setEmail(null);
+            } else if (!normalizedEmail.equals(user.getEmail())) {
+                if (userRepository.existsByEmail(normalizedEmail)) {
+                    throw new IllegalArgumentException("Email already registered");
+                }
+                user.setEmail(normalizedEmail);
+            }
+        }
+
         // Visibility toggles
         if (request.showBio() != null) user.setShowBio(request.showBio());
         if (request.showLocation() != null) user.setShowLocation(request.showLocation());
@@ -151,6 +163,7 @@ public class UserService {
                 u.getLocation(),
                 u.getGender(),
                 u.getPhone(),
+                u.getEmail(),
                 links
         );
     }
@@ -172,6 +185,7 @@ public class UserService {
                 Boolean.TRUE.equals(u.getShowLocation()) ? u.getLocation() : null,
                 Boolean.TRUE.equals(u.getShowGender()) ? u.getGender() : null,
                 Boolean.TRUE.equals(u.getShowPhone()) ? u.getPhone() : null,
+                null,
                 Boolean.TRUE.equals(u.getShowLinks()) ? links : List.of()
         );
     }
