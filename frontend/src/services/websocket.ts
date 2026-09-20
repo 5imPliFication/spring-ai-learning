@@ -21,7 +21,7 @@ export class WebSocketService {
       connectHeaders.Authorization = `Bearer ${authToken}`;
     }
 
-    const socket = new SockJS('http://localhost:8080/ws-chat');
+    const socket = new SockJS(`{VITE_API_BASE_URL}/ws-chat`);
     this.client = new Client({
       webSocketFactory: () => socket,
       connectHeaders,
