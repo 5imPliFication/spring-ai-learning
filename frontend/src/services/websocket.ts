@@ -2,6 +2,7 @@ import { Client } from '@stomp/stompjs';
 import type { StompSubscription, StompHeaders } from '@stomp/stompjs';
 import SockJS from 'sockjs-client';
 import type { ChatMessagePayload, AppNotification } from '../types';
+import { API_BASE_URL } from './config';
 
 export class WebSocketService {
   private client: Client | null = null;
@@ -20,8 +21,7 @@ export class WebSocketService {
     if (authToken) {
       connectHeaders.Authorization = `Bearer ${authToken}`;
     }
-    const baseUrl = import.meta.env.VITE_API_BASE_URL;
-    const socket = new SockJS(`${baseUrl}/ws-chat`);
+    const socket = new SockJS(`${API_BASE_URL}/ws-chat`);
     this.client = new Client({
       webSocketFactory: () => socket,
       connectHeaders,
