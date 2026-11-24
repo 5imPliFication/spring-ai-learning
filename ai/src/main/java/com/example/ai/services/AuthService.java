@@ -1,5 +1,6 @@
 package com.example.ai.services;
 
+import com.example.ai.exception.InvalidCredentialsException;
 import com.example.ai.dto.AuthResponse;
 import com.example.ai.dto.LoginRequest;
 import com.example.ai.dto.RegisterRequest;
@@ -47,10 +48,10 @@ public class AuthService {
 
     public AuthResponse login(LoginRequest request) {
         User user = userRepository.findByUsername(request.username())
-                .orElseThrow(() -> new IllegalArgumentException("Invalid username or password"));
+                .orElseThrow(InvalidCredentialsException::new);
 
         if (!passwordEncoder.matches(request.password(), user.getPassword())) {
-            throw new IllegalArgumentException("Invalid username or password");
+            throw new InvalidCredentialsException();
         }
 
         String token = jwtUtil.generateToken(user);

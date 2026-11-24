@@ -37,7 +37,7 @@ export const Avatar: React.FC<AvatarProps> = ({ name = '?', src, isAi = false, s
   if (isAi) {
     return (
       <div
-        className={`${sizeClasses[size]} rounded-full bg-gradient-to-tr from-emerald-500 to-teal-400 text-slate-950 font-bold flex items-center justify-center shadow-lg shadow-emerald-950/50 ring-2 ring-emerald-400/30`}
+        className={`${sizeClasses[size]} shrink-0 rounded-full bg-gradient-to-tr from-emerald-500 to-teal-400 text-slate-950 font-bold flex items-center justify-center shadow-lg shadow-emerald-950/50 ring-2 ring-emerald-400/30`}
       >
         ✨
       </div>
@@ -49,7 +49,7 @@ export const Avatar: React.FC<AvatarProps> = ({ name = '?', src, isAi = false, s
       <img
         src={src}
         alt={`${safeName}'s avatar`}
-        className={`${sizeClasses[size]} rounded-full object-cover bg-slate-800`}
+        className={`${sizeClasses[size]} shrink-0 rounded-full object-cover bg-slate-800`}
       />
     );
   }
@@ -59,7 +59,7 @@ export const Avatar: React.FC<AvatarProps> = ({ name = '?', src, isAi = false, s
 
   return (
     <div
-      className={`${sizeClasses[size]} rounded-full bg-gradient-to-tr ${gradient} text-white font-semibold flex items-center justify-center shadow-md select-none`}
+      className={`${sizeClasses[size]} shrink-0 rounded-full bg-gradient-to-tr ${gradient} text-white font-semibold flex items-center justify-center shadow-md select-none`}
     >
       {initial}
     </div>

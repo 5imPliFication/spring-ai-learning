@@ -23,6 +23,7 @@ public class JwtWebSocketAuthInterceptor implements ChannelInterceptor {
     private static final String NOTIFICATION_TOPIC_PREFIX = "/topic/user/";
     private static final String ROOM_TOPIC_PREFIX = "/topic/room/";
     private static final String CHAT_DESTINATION_PREFIX = "/app/chat/";
+    private static final String BROKER_QUEUE_PREFIX = "/queue/";
 
     private final JwtUtil jwtUtil;
     private final RoomRepository roomRepository;
@@ -61,9 +62,7 @@ public class JwtWebSocketAuthInterceptor implements ChannelInterceptor {
                 .email(jwtUtil.extractEmail(token))
                 .build();
 
-        var authentication = new UsernamePasswordAuthenticationToken(
-                user, null, List.of(new SimpleGrantedAuthority("ROLE_" + user.getRole())));
-        accessor.setUser(authentication);
+        accessor.setUser(new UserIdAuthentication(user));
     }
 
     private void authorizeSubscription(StompHeaderAccessor accessor) {
@@ -77,7 +76,11 @@ public class JwtWebSocketAuthInterceptor implements ChannelInterceptor {
             return;
         }
 
-        if (destination.startsWith(NOTIFICATION_TOPIC_PREFIX)) {
+        if (destination.startsWith(BROKER_QUEUE_PREFIX)) {
+            // Per-user queues are reached only via /user/queue/..., which Spring resolves to this session's own
+            // queue. Subscribing to the resolved /queue/... name directly could read another session's messages.
+            throw new MessageDeliveryException("Subscribe to /user/queue/... instead");
+        } else if (destination.startsWith(NOTIFICATION_TOPIC_PREFIX)) {
             String targetUserId = destination.substring(NOTIFICATION_TOPIC_PREFIX.length()).split("/")[0];
             if (!user.getId().equals(targetUserId)) {
                 throw new MessageDeliveryException("Cannot subscribe to another user's notifications");
@@ -143,5 +146,20 @@ public class JwtWebSocketAuthInterceptor implements ChannelInterceptor {
             return authHeader.substring(7);
         }
         return accessor.getFirstNativeHeader("token");
+    }
+
+    /**
+     * The WebSocket principal. Its name is the user id, because {@code convertAndSendToUser(userId, ...)}
+     * routes by {@link java.security.Principal#getName()}; the default would be {@code User.toString()}.
+     */
+    static final class UserIdAuthentication extends UsernamePasswordAuthenticationToken {
+        UserIdAuthentication(User user) {
+            super(user, null, List.of(new SimpleGrantedAuthority("ROLE_" + user.getRole())));
+        }
+
+        @Override
+        public String getName() {
+            return ((User) getPrincipal()).getId();
+        }
     }
 }

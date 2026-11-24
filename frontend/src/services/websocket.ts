@@ -1,7 +1,7 @@
 import { Client } from '@stomp/stompjs';
 import type { StompSubscription, StompHeaders } from '@stomp/stompjs';
 import SockJS from 'sockjs-client';
-import type { ChatMessagePayload, AppNotification } from '../types';
+import type { ChatMessagePayload, AppNotification, UserNotice } from '../types';
 import { API_BASE_URL } from './config';
 
 export class WebSocketService {
@@ -95,6 +95,25 @@ export class WebSocketService {
         console.error('[WebSocket] Error parsing notification payload:', err);
       }
     });
+  }
+
+  /** Private notices for the logged-in user; the server resolves /user/queue/... to this session's queue. */
+  public subscribeToUserNotices(onNotice: (notice: UserNotice) => void): () => void {
+    const topic = '/user/queue/errors';
+    this.subscribe(topic, (frame) => {
+      try {
+        onNotice(JSON.parse(frame.body) as UserNotice);
+      } catch (err) {
+        console.error('[WebSocket] Error parsing notice payload:', err);
+      }
+    });
+    return () => this.unsubscribeTopic(topic);
+  }
+
+  private unsubscribeTopic(topic: string): void {
+    this.subscriptions.get(topic)?.unsubscribe();
+    this.subscriptions.delete(topic);
+    this.pendingSubscriptions.delete(topic);
   }
 
   public isSubscribed(roomId: string): boolean {

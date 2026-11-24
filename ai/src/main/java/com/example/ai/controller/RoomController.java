@@ -57,8 +57,9 @@ public class RoomController {
     }
 
     @GetMapping("/{roomId}/messages")
-    public ResponseEntity<List<MessageResponse>> getMessages(@PathVariable String roomId) {
-        return ResponseEntity.ok(roomService.getMessages(roomId));
+    public ResponseEntity<List<MessageResponse>> getMessages(@PathVariable String roomId,
+                                                             @AuthenticationPrincipal User user) {
+        return ResponseEntity.ok(roomService.getMessages(roomId, user));
     }
 
     @GetMapping("/{roomId}/members")
@@ -88,6 +89,13 @@ public class RoomController {
         String password = request != null ? request.password() : null;
         roomService.joinRoom(roomId, user.getId(), password);
         return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/{roomId}/leave")
+    public ResponseEntity<Void> leaveRoom(@PathVariable String roomId,
+                                          @AuthenticationPrincipal User user) {
+        roomService.leaveRoom(roomId, user);
+        return ResponseEntity.noContent().build();
     }
 
     @DeleteMapping("/{roomId}")

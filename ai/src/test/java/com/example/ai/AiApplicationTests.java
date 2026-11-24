@@ -1,13 +1,12 @@
 package com.example.ai;
 
+import com.example.ai.support.IntegrationTest;
 import org.junit.jupiter.api.Test;
-import org.springframework.boot.test.context.SpringBootTest;
 
-@SpringBootTest
+@IntegrationTest
 class AiApplicationTests {
 
     @Test
     void contextLoads() {
     }
-
 }

@@ -1,0 +1,31 @@
+# Test profile: real Postgres comes from Testcontainers (@ServiceConnection), everything external is stubbed.
+spring:
+  datasource:
+    # Overridden by @ServiceConnection; set here so the PG* placeholders in application.yml are never needed.
+    url: jdbc:postgresql://localhost:5432/unused
+    username: unused
+    password: unused
+  ai:
+    deepseek:
+      api-key: test-key
+    mcp:
+      client:
+        enabled: false
+
+app:
+  jwt:
+    secret: test-secret-that-is-long-enough-for-hs256-signing
+  frontend:
+    base-url: http://localhost:5173
+  cors:
+    allowed-origins: http://localhost:5173,https://app.example.com
+  r2:
+    endpoint: http://localhost:9000
+    access-key: test
+    secret-key: test
+    bucket: test
+    public-base-url: http://localhost:9000/test
+  ratelimit:
+    ai-per-minute: 3
+    ai-per-day: 100
+    auth-per-minute: 5

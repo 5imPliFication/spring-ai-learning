@@ -61,9 +61,24 @@ export const MessageFeed: React.FC<MessageFeedProps> = ({
   const grouped = useMemo(() => groupMessages(messages), [messages]);
   const memberUsernames = useMemo(() => members.map((m) => m.username), [members]);
 
+  // Follow new messages only while the reader is at (or near) the bottom, so scrolling up to read
+  // history isn't yanked back down by every streamed update.
+  const containerRef = useRef<HTMLDivElement>(null);
+  const stickToBottomRef = useRef(true);
+  const handleScroll = () => {
+    const el = containerRef.current;
+    if (!el) return;
+    stickToBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
+  };
+
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, isAiTyping]);
+    const last = messages[messages.length - 1];
+    const sentByMe = last?.senderId === currentUserId && !last?.streaming;
+    if (!stickToBottomRef.current && !sentByMe) return;
+    // Smooth scrolling on every ~75ms stream update stutters; jump instead while a reply is streaming.
+    bottomRef.current?.scrollIntoView({ behavior: last?.streaming ? 'auto' : 'smooth' });
+    stickToBottomRef.current = true;
+  }, [messages, isAiTyping, currentUserId]);
 
   if (messages.length === 0) {
     return (
@@ -80,7 +95,7 @@ export const MessageFeed: React.FC<MessageFeedProps> = ({
   }
 
   return (
-    <div className="flex-1 overflow-y-auto p-6">
+    <div ref={containerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto p-6">
       {grouped.map((msg, i) => {
         const canDelete =
           msg.senderId === currentUserId ||
@@ -88,7 +103,7 @@ export const MessageFeed: React.FC<MessageFeedProps> = ({
           currentUserRole === 'ADMIN';
         return (
           <MessageItem
-            key={msg.id || i}
+            key={msg.streamId ?? msg.id ?? i}
             message={msg}
             isSelf={msg.senderId === currentUserId}
             isFirstInGroup={msg.isFirstInGroup}

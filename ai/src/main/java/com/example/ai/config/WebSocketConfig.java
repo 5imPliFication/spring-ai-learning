@@ -19,17 +19,21 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     private final RoomRepository roomRepository;
     private final RoomMemberRepository roomMemberRepository;
     private final RoomPresenceTracker roomPresenceTracker;
+    private final AllowedOrigins allowedOrigins;
 
     @Override
     public void configureMessageBroker(MessageBrokerRegistry config) {
-        config.enableSimpleBroker("/topic");
+        // /queue backs per-user destinations: convertAndSendToUser(userId, "/queue/errors", ...) reaches
+        // the sessions of that user, who subscribe to /user/queue/errors.
+        config.enableSimpleBroker("/topic", "/queue");
+        config.setUserDestinationPrefix("/user");
         config.setApplicationDestinationPrefixes("/app");
     }
 
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
         registry.addEndpoint("/ws-chat")
-                .setAllowedOriginPatterns("*")
+                .setAllowedOriginPatterns(allowedOrigins.patternsArray())
                 .withSockJS();
     }
 

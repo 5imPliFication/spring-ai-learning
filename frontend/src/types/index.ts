@@ -74,6 +74,18 @@ export interface Message {
   replyToContent?: string;
   deleted?: boolean;
   actionCard?: CalendarActionCard;
+  /** AI replies only: links the streamed bubble to its final saved message. */
+  streamId?: string;
+  /** True while an AI reply is still arriving; such messages have a temporary negative id. */
+  streaming?: boolean;
+}
+
+/** Private feedback for one user, from /user/queue/errors. */
+export interface UserNotice {
+  type: 'RATE_LIMITED' | 'AI_BUSY';
+  roomId: string | null;
+  message: string;
+  retryAfterSeconds: number | null;
 }
 
 export interface ChatMessagePayload {
@@ -82,13 +94,14 @@ export interface ChatMessagePayload {
   content: string | null;
   messageType?: string;
   mediaUrl?: string | null;
-  type: 'CHAT' | 'TYPING' | 'IDLE' | 'DELETE';
+  type: 'CHAT' | 'TYPING' | 'IDLE' | 'DELETE' | 'STREAM_START' | 'STREAM_DELTA' | 'STREAM_ERROR';
   timestamp?: string;
   replyToId?: number;
   messageId?: number;
   deleted?: boolean;
   mentionedUserIds?: string[];
   actionCard?: CalendarActionCard;
+  streamId?: string;
 }
 
 export interface Friend {

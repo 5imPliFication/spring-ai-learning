@@ -60,3 +60,26 @@
 .typing-dot:nth-child(3) {
   animation-delay: 0.3s;
 }
+
+/* Blinking caret at the end of an AI reply that is still streaming */
+.stream-cursor {
+  display: inline-block;
+  width: 0.5ch;
+  height: 1em;
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  background-color: #34d399;
+  animation: stream-cursor-blink 1s steps(1) infinite;
+}
+
+@keyframes stream-cursor-blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stream-cursor {
+    animation: none;
+  }
+}

@@ -1,5 +1,16 @@
 server:
   port: ${PORT:8080}
+  # Trust X-Forwarded-* from Railway's proxy so getRemoteAddr() is the real client IP (used by rate limiting).
+  forward-headers-strategy: framework
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
 
 spring:
   application:
@@ -9,10 +20,8 @@ spring:
       ddl-auto: validate
 
   datasource:
-    #    url: ${DATABASE_URL}
-    #    username: ${DATABASE_USERNAME}
-    #    password: ${DATABASE_PASSWORD}
-    url: jdbc:postgresql://${PGHOST}:${PGPORT}/${PGDATABASE}?sslmode=require
+    # Railway provides PG* automatically; locally set them in ai/.env (PGSSLMODE=disable for a non-SSL Postgres).
+    url: jdbc:postgresql://${PGHOST}:${PGPORT:5432}/${PGDATABASE}?sslmode=${PGSSLMODE:require}
     username: ${PGUSER}
     password: ${PGPASSWORD}
 
@@ -41,7 +50,16 @@ app:
       scopes: openid email https://www.googleapis.com/auth/calendar
 
   frontend:
-    base-url: http://localhost:5173
+    base-url: ${FRONTEND_BASE_URL:http://localhost:5173}
+
+  cors:
+    # Comma-separated origins (patterns allowed, e.g. https://*.up.railway.app).
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:${app.frontend.base-url}}
+
+  ratelimit:
+    ai-per-minute: ${AI_RATE_PER_MINUTE:10}
+    ai-per-day: ${AI_RATE_PER_DAY:100}
+    auth-per-minute: ${AUTH_RATE_PER_MINUTE:5}
 
   r2:
     endpoint: ${R2_ENDPOINT}
@@ -58,8 +76,16 @@ app:
     system-prompt: >
       You are a helpful and friendly AI assistant participating in a group chat.
       When users ask for your opinion or help, give them a direct, honest answer.
-    max-tokens: 512
+    max-tokens: ${AI_MAX_TOKENS:512}
     context-messages: 20
+    streaming:
+      # Stream replies token by token over the room topic; false = one message when the reply is complete.
+      enabled: ${AI_STREAMING_ENABLED:true}
+      timeout: 90s
+    # Concurrent AI calls; extra requests queue up to queue-capacity, then get a "busy" reply.
+    executor:
+      threads: 4
+      queue-capacity: 50
 
   notification:
     ttl-days: 56
