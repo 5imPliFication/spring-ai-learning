@@ -253,7 +253,8 @@ export const MessageItem: React.FC<MessageItemProps> = ({
   if (isAi) {
     return (
       <div className={`flex gap-3 max-w-[85%] md:max-w-[75%] ${margin} group relative`}>
-        {actions}
+        {/* No reply/delete until the streamed reply is saved and has a real id */}
+        {!message.streaming && actions}
         {isFirstInGroup ? <Avatar name="Azura" isAi size="md" /> : <div className="w-9 shrink-0" />}
         <div className="flex flex-col">
           {isFirstInGroup && (
@@ -274,9 +275,10 @@ export const MessageItem: React.FC<MessageItemProps> = ({
             } ${!isFirstInGroup ? 'rounded-tl-lg' : ''}`}
           >
             {message.mediaUrl && <MediaContent message={message} />}
-            {message.content && (
-              <div className="whitespace-pre-wrap mt-1.5">
+            {(message.content || message.streaming) && (
+              <div className="whitespace-pre-wrap mt-1.5" aria-live={message.streaming ? 'polite' : undefined}>
                 <MentionText content={message.content} usernames={memberUsernames} />
+                {message.streaming && <span className="stream-cursor" aria-hidden="true" />}
               </div>
             )}
             {message.actionCard && (

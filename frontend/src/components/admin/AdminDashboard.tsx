@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import type { AdminDashboardStats, User, Room, Message } from '../../types';
 import { adminApi } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
@@ -43,6 +43,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
     );
   }
 
+  return <AdminConsole onClose={onClose} />;
+};
+
+/** Only rendered for admins, so its hooks always run in the same order. */
+const AdminConsole: React.FC<AdminDashboardProps> = ({ onClose }) => {
   const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'rooms' | 'messages'>('overview');
   const [stats, setStats] = useState<AdminDashboardStats | null>(null);
   const [users, setUsers] = useState<User[]>([]);
@@ -50,11 +55,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    loadData();
-  }, [activeTab]);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     setIsLoading(true);
     try {
       if (activeTab === 'overview') {
@@ -75,7 +76,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [activeTab]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   const handleDeleteUser = async (userId: string, hard: boolean) => {
     try {

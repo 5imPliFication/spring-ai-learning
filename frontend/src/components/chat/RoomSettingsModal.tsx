@@ -5,7 +5,7 @@ import { Avatar } from '../ui/Avatar';
 import { UserProfileCard } from '../profile/UserProfileCard';
 import {
   X, Trash2, Settings, UserMinus, AlertTriangle, Pencil, Lock, Users, KeyRound, Unlock,
-  Check, Loader2, Copy, Link2, BellRing, AtSign, BellOff,
+  Check, Loader2, Copy, Link2, BellRing, AtSign, BellOff, LogOut,
 } from 'lucide-react';
 
 interface RoomSettingsModalProps {
@@ -64,6 +64,7 @@ export const RoomSettingsModal: React.FC<RoomSettingsModalProps> = ({
   const [notifMode, setNotifMode] = useState<NotificationMode>('ALL');
   const [isSavingNotifMode, setIsSavingNotifMode] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -226,6 +227,17 @@ export const RoomSettingsModal: React.FC<RoomSettingsModalProps> = ({
       setSuccessMsg('Invite link copied to clipboard.');
     } catch (err: any) {
       setErrorMsg(err.response?.data?.message || 'Failed to generate invite link');
+    }
+  };
+
+  const handleLeaveRoom = async () => {
+    setErrorMsg(null);
+    try {
+      await roomApi.leaveRoom(room.id);
+      onRoomDeleted(room.id); // same cleanup as a deleted room: drop it from the list and close it
+      onClose();
+    } catch (err: any) {
+      setErrorMsg(err.response?.data?.message || 'Failed to leave room');
     }
   };
 
@@ -514,6 +526,34 @@ export const RoomSettingsModal: React.FC<RoomSettingsModalProps> = ({
                         </div>
                       );
                     })
+                  )}
+                  {!isOwner && (
+                    <div className="pt-3">
+                      {showLeaveConfirm ? (
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={handleLeaveRoom}
+                            className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white text-xs font-bold rounded-xl"
+                          >
+                            Confirm Leave
+                          </button>
+                          <button
+                            onClick={() => setShowLeaveConfirm(false)}
+                            className="px-3 py-2 text-slate-400 hover:text-white text-xs font-medium"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => setShowLeaveConfirm(true)}
+                          className="w-full py-2.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 text-xs font-semibold rounded-xl flex items-center justify-center gap-2 transition-colors"
+                        >
+                          <LogOut className="w-4 h-4" />
+                          <span>Leave Room</span>
+                        </button>
+                      )}
+                    </div>
                   )}
                 </div>
               )}

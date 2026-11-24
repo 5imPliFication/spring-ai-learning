@@ -19,18 +19,8 @@ import { FriendsModal } from '../friends/FriendsModal';
 import { AdminDashboard } from '../admin/AdminDashboard';
 import { ErrorPage } from '../common/ErrorPage';
 import { MessageSquare, Sparkles } from 'lucide-react';
-
-const mediaLabel = (m: Message | undefined): string | undefined => {
-  if (!m?.mediaUrl) return undefined;
-  switch (m.messageType) {
-    case 'IMAGE':
-      return '[Image]';
-    case 'AUDIO':
-      return '[Audio]';
-    default:
-      return '[File]';
-  }
-};
+import { chatReducer, initialChatState, toastForEvent, type ChatState } from './chatEvents';
+import { Toast, type ToastData } from '../common/Toast';
 
 export const ChatLayout: React.FC = () => {
   const { user, logout } = useAuth();
@@ -40,10 +30,13 @@ export const ChatLayout: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(user);
   const [joinedRooms, setJoinedRooms] = useState<Room[]>([]);
   const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
-  const [messages, setMessages] = useState<Message[]>([]);
+  // Messages, AI typing and mention highlights all change together on WebSocket events (see chatReducer).
+  const [chat, setChat] = useState<ChatState>(() => initialChatState(user?.id));
+  const { messages, isAiTyping, mentionedMessageIds } = chat;
+  const setMessages = useCallback((update: Message[] | ((prev: Message[]) => Message[])) => {
+    setChat((c) => ({ ...c, messages: typeof update === 'function' ? update(c.messages) : update }));
+  }, []);
   const [roomMembers, setRoomMembers] = useState<RoomMember[]>([]);
-  const [mentionedMessageIds, setMentionedMessageIds] = useState<Set<number>>(new Set());
-  const [isAiTyping, setIsAiTyping] = useState(false);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const joiningRoomRef = useRef<string | null>(null);
   const subscribedRoomRef = useRef<string | null>(null);
@@ -62,6 +55,11 @@ export const ChatLayout: React.FC = () => {
 
   // Global Error State
   const [appError, setAppError] = useState<AppError | null>(null);
+
+  // Short-lived feedback: private notices ("you're asking the AI too often") and AI stream failures
+  const [toast, setToast] = useState<ToastData | null>(null);
+  const showToast = useCallback((message: string) => setToast({ id: Date.now(), message }), []);
+  const dismissToast = useCallback(() => setToast(null), []);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
   // Google Calendar OAuth redirect result (?oauth=success|error)
@@ -129,70 +127,33 @@ export const ChatLayout: React.FC = () => {
     setFriendsList((prev) => prev.filter((f) => f.friendId !== friendId));
   }, []);
 
+  useEffect(() => {
+    if (!currentUser?.id) return;
+    return wsService.subscribeToUserNotices((notice) => showToast(notice.message));
+  }, [currentUser?.id, showToast]);
+
   const handleIncomingWebSocketMessage = useCallback((payload: ChatMessagePayload) => {
-    if (payload.type === 'TYPING') {
-      setIsAiTyping(true);
-      return;
-    }
+    setChat((c) => chatReducer(c, payload));
+    const toastMessage = toastForEvent(payload);
+    if (toastMessage) showToast(toastMessage);
+  }, [showToast]);
 
-    if (payload.type === 'IDLE') {
-      setIsAiTyping(false);
-      return;
-    }
-
-    if (payload.type === 'DELETE') {
-      if (payload.messageId != null) {
-        setMessages((prev) =>
-          prev.map((m) => (m.id === payload.messageId ? { ...m, deleted: true, content: '' } : m))
-        );
-      }
-      return;
-    }
-
-    if (payload.type === 'CHAT') {
-      if (payload.senderId === 'ai-bot') {
-        setIsAiTyping(false);
-      }
-      const mentionsMe = !!currentUser?.id
-        && !!payload.mentionedUserIds?.includes(currentUser.id);
-      if (mentionsMe && payload.messageId != null) {
-        setMentionedMessageIds((prev) => new Set(prev).add(payload.messageId as number));
-      }
-      setMessages((prev) => {
-        const replyMsg = payload.replyToId != null
-          ? prev.find((m) => m.id === payload.replyToId)
-          : undefined;
-        const newMsg: Message = {
-          id: payload.messageId ?? Date.now(),
-          senderId: payload.senderId,
-          senderName: payload.senderName,
-          content: payload.content || '',
-          messageType: (payload.messageType as any) || 'TEXT',
-          mediaUrl: payload.mediaUrl || undefined,
-          createdAt: payload.timestamp || new Date().toISOString(),
-          replyToId: payload.replyToId ?? undefined,
-          replyToSenderName: replyMsg?.senderName,
-          replyToContent: replyMsg?.deleted ? undefined : (replyMsg?.content || mediaLabel(replyMsg)),
-          deleted: false,
-          actionCard: payload.actionCard,
-        };
-        return [...prev, newMsg];
-      });
-    }
-  }, [currentUser]);
+  // Keep the viewer id in chat state current (it decides which messages mention "me").
+  useEffect(() => {
+    setChat((c) => (c.currentUserId === currentUser?.id ? c : { ...c, currentUserId: currentUser?.id }));
+  }, [currentUser?.id]);
 
   const executeJoinRoom = useCallback(async (roomId: string, password?: string) => {
     setActiveRoomId(roomId);
     setIsMobileSidebarOpen(false);
-    setIsAiTyping(false);
+    setChat((c) => ({ ...c, isAiTyping: false }));
 
     try {
       await roomApi.joinRoom(roomId, password);
       await fetchJoinedRooms();
       const history = await roomApi.getMessages(roomId);
-      setMessages(history);
+      setChat((c) => ({ ...c, messages: history, mentionedMessageIds: new Set() }));
       setReplyingTo(null);
-      setMentionedMessageIds(new Set());
       clearRoomDelta(roomId);
       roomApi.markRoomRead(roomId).catch((err) =>
         console.error('Failed to mark room read:', err)
@@ -291,8 +252,11 @@ export const ChatLayout: React.FC = () => {
     }
   };
 
+  /** The room was deleted or the user left it: forget it and stop receiving its events. */
   const handleRoomDeleted = (deletedId: string) => {
     setJoinedRooms((prev) => prev.filter((r) => r.id !== deletedId));
+    wsService.unsubscribeRoom(deletedId);
+    if (subscribedRoomRef.current === deletedId) subscribedRoomRef.current = null;
     if (activeRoomId === deletedId) {
       setActiveRoomId(null);
       setMessages([]);
@@ -374,6 +338,7 @@ export const ChatLayout: React.FC = () => {
 
       {/* Main Chat Area */}
       <main className="flex-1 flex flex-col h-full min-w-0 bg-slate-950">
+        <Toast toast={toast} onDismiss={dismissToast} />
         {viewingUserId ? (
           <UserProfileCard userId={viewingUserId} onClose={() => setViewingUserId(null)} />
         ) : activeRoom ? (

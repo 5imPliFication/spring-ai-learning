@@ -10,13 +10,11 @@ import com.example.ai.repository.RoomMemberRepository;
 import com.example.ai.repository.RoomMessageRepository;
 import com.example.ai.repository.RoomRepository;
 import com.example.ai.repository.UserRepository;
-import com.example.ai.services.AzuraService;
+import com.example.ai.services.AzuraReplyService;
 import com.example.ai.services.MentionService;
 import com.example.ai.services.NotificationService;
 import com.example.ai.services.RoomNotificationSettingsService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.ai.chat.model.ChatResponse;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.messaging.MessageDeliveryException;
 import org.springframework.messaging.handler.annotation.DestinationVariable;
 import org.springframework.messaging.handler.annotation.MessageMapping;
@@ -27,7 +25,6 @@ import org.springframework.stereotype.Controller;
 import java.security.Principal;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.CompletableFuture;
 
 @Controller
 @RequiredArgsConstructor
@@ -38,14 +35,11 @@ public class ChatWebSocketController {
     private final RoomRepository roomRepository;
     private final RoomMemberRepository roomMemberRepository;
     private final UserRepository userRepository;
-    private final AzuraService azuraService;
+    private final AzuraReplyService azuraReplyService;
     private final NotificationService notificationService;
     private final RoomPresenceTracker roomPresenceTracker;
     private final MentionService mentionService;
     private final RoomNotificationSettingsService notificationSettingsService;
-
-    @Value("${app.ai.name}")
-    private String aiName;
 
     @MessageMapping("/chat/{roomId}")
     public void handleMessage(@DestinationVariable String roomId, Principal principal, ChatMessage message) {
@@ -110,60 +104,8 @@ public class ChatWebSocketController {
             fanOutGroupNotifications(room, roomId, senderId, senderName, message, mentionedUserIds);
         }
 
-        if (message.content() != null && message.content().toLowerCase().contains("@ai")) {
-            String requesterId = senderId;
-            String roomName = room != null ? room.getName() : null;
-            CompletableFuture.runAsync(() -> {
-                try {
-                    messagingTemplate.convertAndSend("/topic/room/" + roomId,
-                            ChatMessage.typing("ai-bot", aiName));
-
-                    ChatResponse chatResponse = azuraService.generateResponse(roomId, requesterId);
-                    String responseText = chatResponse != null && chatResponse.getResult() != null
-                            ? chatResponse.getResult().getOutput().getText()
-                            : null;
-
-                    AzuraService.ProcessedAiResponse processed = azuraService.processActionToken(responseText, requesterId);
-                    String content = processed.content();
-                    if (content == null || content.isBlank()) {
-                        content = processed.actionCard() != null
-                                ? "A calendar action is waiting for your approval."
-                                : "Sorry, I couldn't generate a response. Please try again.";
-                    }
-
-                    RoomMessage aiMsg = azuraService.saveAzuraMessage(
-                            roomId, content, chatResponse, processed.actionCard());
-
-                    messagingTemplate.convertAndSend("/topic/room/" + roomId,
-                            processed.actionCard() != null
-                                    ? ChatMessage.chatActionCard(aiMsg.getId(), "ai-bot", aiName,
-                                            content, processed.actionCard())
-                                    : ChatMessage.chat(aiMsg.getId(), "ai-bot", aiName, content));
-
-                    messagingTemplate.convertAndSend("/topic/room/" + roomId,
-                            ChatMessage.idle("ai-bot", aiName));
-
-                    if (requesterId != null && !requesterId.isBlank()
-                            && !roomPresenceTracker.isViewing(requesterId, roomId)
-                            && notificationSettingsService.shouldNotify(requesterId, roomId, false)) {
-                        String snippet = processed.content().length() > 120
-                                ? processed.content().substring(0, 120) + "…"
-                                : processed.content();
-                        notificationService.create(
-                                requesterId,
-                                "AI_REPLY",
-                                aiName + " replied" + (roomName != null ? " in " + roomName : ""),
-                                snippet,
-                                "ai-bot",
-                                roomId
-                        );
-                    }
-                } catch (Exception e) {
-                    messagingTemplate.convertAndSend("/topic/room/" + roomId,
-                            ChatMessage.idle("ai-bot", aiName));
-                    e.printStackTrace();
-                }
-            });
+        if (AzuraReplyService.mentionsAi(message.content())) {
+            azuraReplyService.requestReply(roomId, senderId, room != null ? room.getName() : null);
         }
     }
 

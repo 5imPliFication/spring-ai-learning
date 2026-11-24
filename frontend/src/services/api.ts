@@ -17,8 +17,7 @@ import type {
   PresignedUploadResponse,
   CalendarActionCard,
 } from '../types';
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+import { API_BASE_URL } from './config';
 
 export const apiClient = axios.create({
   baseURL: `${API_BASE_URL}/api/v1`,
@@ -41,13 +40,21 @@ apiClient.interceptors.request.use((config) => {
   return config;
 });
 
+/**
+ * A 401 means the stored session is no longer valid, except on the login/register endpoints,
+ * where it just means wrong credentials and the form shows the server's message.
+ */
+export function isSessionExpired(status: number, url: string | undefined): boolean {
+  return status === 401 && !(url ?? '').replace(/^\/+/, '').startsWith('auth/');
+}
+
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response) {
       const status = error.response.status;
 
-      if (status === 401) {
+      if (isSessionExpired(status, error.config?.url)) {
         localStorage.removeItem('token');
         localStorage.removeItem('user');
         if (onErrorHandler) {
@@ -198,6 +205,10 @@ export const roomApi = {
 
   joinRoom: async (roomId: string, password?: string): Promise<void> => {
     await apiClient.post(`/rooms/${roomId}/join`, { password });
+  },
+
+  leaveRoom: async (roomId: string): Promise<void> => {
+    await apiClient.post(`/rooms/${roomId}/leave`);
   },
 
   deleteRoom: async (roomId: string): Promise<void> => {

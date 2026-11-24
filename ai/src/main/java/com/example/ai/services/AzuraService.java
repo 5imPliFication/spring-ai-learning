@@ -13,15 +13,20 @@ import org.springframework.ai.deepseek.DeepSeekChatOptions;
 import org.springframework.ai.support.ToolCallbacks;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
+import reactor.core.publisher.Flux;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 @Service
 public class AzuraService {
@@ -58,35 +63,25 @@ public class AzuraService {
         this.pendingCalendarActionService = pendingCalendarActionService;
     }
 
+    /** One blocking model call; returns the complete reply. */
     public ChatResponse generateResponse(String roomId, String requesterId) {
-        List<RoomMessage> topMessages = new ArrayList<>(
-                roomMessageRepository.findTop20ByRoomIdAndDeletedAtIsNullOrderByCreatedAtDesc(roomId)
-        );
+        return buildPrompt(roomId, requesterId).call().chatResponse();
+    }
 
-        if (topMessages.size() > contextMessagesCount) {
-            topMessages = topMessages.subList(0, contextMessagesCount);
-        }
+    /** The same request, streamed. Tool calls still run between chunks. */
+    public Flux<ChatResponse> streamResponse(String roomId, String requesterId) {
+        return buildPrompt(roomId, requesterId).stream().chatResponse();
+    }
 
-        // Reverse to chronological order
-        java.util.Collections.reverse(topMessages);
+    private ChatClient.ChatClientRequestSpec buildPrompt(String roomId, String requesterId) {
+        List<RoomMessage> recent = new ArrayList<>(roomMessageRepository.findByRoomIdAndDeletedAtIsNullOrderByCreatedAtDesc(
+                roomId, PageRequest.of(0, Math.max(1, contextMessagesCount))));
+        Collections.reverse(recent); // chronological
 
-        Map<String, String> userNames = new HashMap<>();
-        StringBuilder contextBuilder = new StringBuilder();
-
-        for (RoomMessage msg : topMessages) {
-            String senderName = userNames.computeIfAbsent(msg.getSenderId(), id ->
-                userRepository.findById(id).map(u -> u.getDisplayName()).orElse("Unknown")
-            );
-
-            contextBuilder.append(senderName).append(": ");
-            switch (msg.getMessageType() != null ? msg.getMessageType().toUpperCase() : "TEXT") {
-                case "IMAGE" -> contextBuilder.append("[Image]");
-                case "FILE" -> contextBuilder.append("[File]");
-                case "AUDIO" -> contextBuilder.append("[Audio]");
-                default -> contextBuilder.append(msg.getContent());
-            }
-            contextBuilder.append("\n");
-        }
+        Set<String> senderIds = recent.stream().map(RoomMessage::getSenderId).collect(Collectors.toSet());
+        Map<String, String> names = new HashMap<>();
+        userRepository.findAllById(senderIds).forEach(u -> names.put(u.getId(), u.getDisplayName()));
+        names.putIfAbsent(AzuraReplyService.AI_SENDER_ID, aiName);
 
         String fullSystemPrompt = """
             Your name is %s. You are a participant in a group chat.
@@ -97,7 +92,8 @@ public class AzuraService {
             Just give the direct answer. Be helpful but brief.
             """.formatted(aiName, systemPromptConfig, currentDateTimeHint());
 
-        String userPrompt = "Here's the recent chat:\n" + contextBuilder + "\nNow respond to the conversation above.";
+        String userPrompt = "Here's the recent chat:\n" + buildTranscript(recent, names)
+                + "\nNow respond to the conversation above.";
 
         var prompt = chatClient.prompt()
                 .system(fullSystemPrompt)
@@ -111,18 +107,41 @@ public class AzuraService {
             prompt.tools(calendarCallbacks)
                     .toolContext(Map.of("userId", requesterId, "roomId", roomId));
         }
+        return prompt;
+    }
 
-        return prompt.call()
-                .chatResponse();
+    /** "Name: text" per line, oldest first; media is summarised as [Image]/[File]/[Audio]. */
+    static String buildTranscript(List<RoomMessage> chronological, Map<String, String> namesById) {
+        StringBuilder sb = new StringBuilder();
+        for (RoomMessage msg : chronological) {
+            sb.append(namesById.getOrDefault(msg.getSenderId(), "Unknown")).append(": ");
+            switch (msg.getMessageType() != null ? msg.getMessageType().toUpperCase() : "TEXT") {
+                case "IMAGE" -> sb.append("[Image]");
+                case "FILE" -> sb.append("[File]");
+                case "AUDIO" -> sb.append("[Audio]");
+                default -> sb.append(msg.getContent());
+            }
+            sb.append("\n");
+        }
+        return sb.toString();
     }
 
     public RoomMessage saveAzuraMessage(String roomId, String content, ChatResponse chatResponse) {
+        return saveAzuraMessage(roomId, content, chatResponse, null);
+    }
+
+    public RoomMessage saveAzuraMessage(String roomId, String content, ChatResponse chatResponse,
+                                        CalendarActionCard actionCard) {
+        Usage usage = chatResponse != null && chatResponse.getMetadata() != null
+                ? chatResponse.getMetadata().getUsage() : null;
+        return saveAzuraMessage(roomId, content, usage, actionCard);
+    }
+
+    public RoomMessage saveAzuraMessage(String roomId, String content, Usage usage, CalendarActionCard actionCard) {
         int promptTokens = 0;
         int completionTokens = 0;
         int totalTokens = 0;
-
-        if (chatResponse != null && chatResponse.getMetadata() != null && chatResponse.getMetadata().getUsage() != null) {
-            Usage usage = chatResponse.getMetadata().getUsage();
+        if (usage != null) {
             promptTokens = usage.getPromptTokens() != null ? usage.getPromptTokens().intValue() : 0;
             completionTokens = usage.getCompletionTokens() != null ? usage.getCompletionTokens().intValue() : 0;
             totalTokens = usage.getTotalTokens() != null ? usage.getTotalTokens().intValue() : (promptTokens + completionTokens);
@@ -130,29 +149,12 @@ public class AzuraService {
 
         RoomMessage msg = RoomMessage.builder()
                 .roomId(roomId)
-                .senderId("ai-bot")
-                .content(content)
-                .messageType("TEXT")
+                .senderId(AzuraReplyService.AI_SENDER_ID)
+                .content(content == null ? "" : content)
+                .messageType(actionCard != null ? "ACTION_CARD" : "TEXT")
                 .promptTokens(promptTokens)
                 .completionTokens(completionTokens)
                 .totalTokens(totalTokens)
-                .build();
-        return roomMessageRepository.save(msg);
-    }
-
-    public RoomMessage saveAzuraMessage(String roomId, String content, ChatResponse chatResponse,
-                                        CalendarActionCard actionCard) {
-        if (actionCard == null) {
-            return saveAzuraMessage(roomId, content, chatResponse);
-        }
-        RoomMessage msg = RoomMessage.builder()
-                .roomId(roomId)
-                .senderId("ai-bot")
-                .content(content == null ? "" : content)
-                .messageType("ACTION_CARD")
-                .promptTokens(0)
-                .completionTokens(0)
-                .totalTokens(0)
                 .build();
         return roomMessageRepository.save(msg);
     }

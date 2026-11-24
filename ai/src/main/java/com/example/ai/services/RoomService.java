@@ -111,7 +111,8 @@ public class RoomService {
                 .toList();
     }
 
-    public List<MessageResponse> getMessages(String roomId) {
+    public List<MessageResponse> getMessages(String roomId, User user) {
+        requireRoomAccess(roomId, user, "Only room members can read messages");
         List<RoomMessage> messages = new java.util.ArrayList<>(
                 roomMessageRepository.findTop200ByRoomIdOrderByCreatedAtDesc(roomId)
         );
@@ -217,6 +218,20 @@ public class RoomService {
 
         room.setDeletedAt(Instant.now());
         roomRepository.save(room);
+    }
+
+    /** A member removes themselves. Owners can't leave their own room; they delete it instead. */
+    @Transactional
+    public void leaveRoom(String roomId, User user) {
+        Room room = roomRepository.findByIdAndDeletedAtIsNull(roomId)
+                .orElseThrow(() -> new IllegalArgumentException("Room not found"));
+        if (user.getId().equals(room.getCreatedBy())) {
+            throw new IllegalArgumentException("Room owners can't leave their own room. Delete it instead.");
+        }
+        if (!roomMemberRepository.existsByRoomIdAndUserId(roomId, user.getId())) {
+            throw new IllegalArgumentException("You are not a member of this room");
+        }
+        roomMemberRepository.deleteByRoomIdAndUserId(roomId, user.getId());
     }
 
     @Transactional
@@ -357,6 +372,18 @@ public class RoomService {
         }
 
         return Map.of("url", frontendBaseUrl + "/invite/" + room.getId());
+    }
+
+    /** Owner, admin or member; otherwise rejects. Private and password-protected rooms rely on this. */
+    private Room requireRoomAccess(String roomId, User user, String deniedMessage) {
+        Room room = roomRepository.findByIdAndDeletedAtIsNull(roomId)
+                .orElseThrow(() -> new IllegalArgumentException("Room not found"));
+        boolean isCreator = room.getCreatedBy() != null && room.getCreatedBy().equals(user.getId());
+        boolean isAdmin = "ADMIN".equalsIgnoreCase(user.getRole());
+        if (!isCreator && !isAdmin && !roomMemberRepository.existsByRoomIdAndUserId(roomId, user.getId())) {
+            throw new IllegalArgumentException(deniedMessage);
+        }
+        return room;
     }
 
     private RoomResponse toRoomResponse(Room r) {
